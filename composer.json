@@ -1,0 +1,20 @@
+{
+    "name": "vittascience/vutils",
+    "description": "Misc php functions",
+    "authors": [{
+        "name": "Clément Menard",
+        "email": "clement@vittascience.com"
+    }],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=5.3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Utils\\": "src/"
+        },
+        "psr-0": {
+            "Utils\\": "src/"
+        }
+    }
+}
