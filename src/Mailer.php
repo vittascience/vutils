@@ -8,13 +8,27 @@ use PHPMailer\PHPMailer\Exception;
 
 class Mailer
 {
-    public static function sendMail($recipient, $subject, $body, $altBody, $replyToMail = "support@vittascience.com", $replyToName = "Support")
+    public static function sendMail($recipient, $subject, $body, $altBody,$templateBody, $replyToMail = null, $replyToName = null)
     {
+       
         $mail = new PHPMailer(true);
         try {
-            $dotenv = Dotenv::createImmutable(__DIR__ . "/../");
+            $dotenv = Dotenv::createImmutable(__DIR__ . "/../../../../");
             $dotenv->load();
-            $mail->isSMTP();
+           
+            // set values
+            $replyToMail = isset($replyToMail) ? $replyToMail : $_ENV['VS_REPLY_TO_MAIL'];
+            $replyToName = isset($replyToName) ? $replyToName : $_ENV['VS_REPLY_TO_NAME'];
+
+
+            $mail->isSMTP(); 
+            $mail->SMTPOptions = array(
+                'ssl' => array(
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => false
+                )
+            );
             $mail->Host = $_ENV['VS_MAIL_SERVER'];
             $mail->SMTPAuth = true;
             $mail->Username = $_ENV['VS_MAIL_ADDRESS'];
@@ -22,39 +36,11 @@ class Mailer
             $mail->SMTPSecure = $_ENV['VS_MAIL_TYPE'];
             $mail->Port = $_ENV['VS_MAIL_PORT'];
 
-            $mail->setFrom($_ENV['VS_MAIL_ADDRESS'], 'Vittascience.com');
+            $mail->setFrom($_ENV['VS_MAIL_ADDRESS'], $_ENV['VS_SET_FROM']);
             $mail->addAddress($recipient);               // Name is optional
             $mail->addReplyTo($replyToMail, $replyToName);
-
-            $templateBody =
-                "<!DOCTYPE html>" .
-                "<html>" .
-                "<head>" .
-
-                "<style type='text/css'>
-                @import url(http://fonts.googleapis.com/css?family=Open+Sans);
-            </style>" .
-                "</head>" .
-                "<body style=' font-size:16px; color:black;'>" .
-
-                "<div style=\"position:relative; max-width:700px; min-width:500px; overflow:hidden; margin: 10px auto; padding:10px; border:#27b88e 3px solid; border-radius:10px;\" >" .
-                "<div style='text-align:center; font-size:16px;  margin: 0 10%; background-color:white; border-radius: 10px;  overflow:hidden;'>" .
-                "<img src='https://vittascience.com/public/content/img/vittascience2small.png' style='display:block; width:150px; object-fit:contain; height:auto; margin: 20px auto;'>" .
-                "<div>" . $body . "</div>" .
-                "<br><hr style='width:150px; height: 2.5px; border: none;color: #636363;background-color: #636363; border-radius: 5px;'>" .
-                "<p style=\"font-size:16px;  font-family:'Open Sans'; color:black; text-align:center;\">Scientifiquement vôtre,<br><b style=\"font-size:16px; font-family:'Open Sans';\">L'équipe Vittascience</b></p>" .
-                "</div>" .
-                "</div>" .
-                "<div style=\"color:black; font-family:'Open Sans'; text-align:center; font-size:16px;\">Nous suivre</div>" .
-                "<div style='width:100%; margin: 10px 0; text-align:center;'>" .
-                "<a href='https://www.linkedin.com/company/vittascience' style='display:inline-block; text-align:center; margin: 10px 20px;'><img style='object-fit:contain; display:block; width:50px; height:50px;  margin: 0 auto;' src='https://vittascience.com/public/content/img/mails/linkedin%20gris.png'></a>" .
-                "<a href='https://www.facebook.com/vittascience' style='display:inline-block; text-align:center; margin: 10px 20px;'><img style='object-fit:contain;  display:block; width:50px; height:50px;  margin: 0 auto;' src='https://vittascience.com/public/content/img/mails/facebook%20gris.png'></a>" .
-                "<a href='https://www.twitter.com/vittascience' style='display:inline-block; text-align:center; margin: 10px 20px;'><img style='object-fit:contain;  display:block; width:50px; height:50px; margin: 0 auto;' src='https://vittascience.com/public/content/img/mails/twitter%20gris.png'></a>" .
-                "</div>" .
-
-                "</body>" .
-                "</html>";
-
+            $templateBody = self::loadTemplateBody($templateBody,$body);
+           
             $mail->isHTML(true);
             $mail->CharSet        = "UTF-8";
             $mail->Subject = $subject;
@@ -65,8 +51,97 @@ class Mailer
             }
             return false;
         } catch (Exception $e) {
+            
 		echo $e->getMessage();
             return false;
         }
+    }
+    public static function loadTemplateBody($templateBody,$body)
+    {
+        // get the emailTemplates dir at the root of the project
+        $emailTemplateDir = __DIR__.'/../../../../emailTemplates';
+
+        // the emailmTemplates dir does not exists at the root level
+        if(!is_dir($emailTemplateDir)) {
+            // get the content from self::loadDefaultTemplateBody and return it
+            $content = self::loadDefaultTemplateBody($templateBody,$body);
+            return $content;
+        }
+        
+         // emailTempltes found, get the emailTemplates subfolders
+         $langFolders = array_diff(scandir("$emailTemplateDir"), array('..', '.'));
+
+         // parse $templateBody to find the language
+         $fileParts = explode('_',$templateBody);
+         $langFolder = ucfirst($fileParts[0]);
+       
+         // no $langFolder match with one of the emailTemplates subfolders
+         if(!in_array($langFolder, $langFolders)) {
+             // get the content from self::loadDefaultTemplateBody and return it
+             $content = self::loadDefaultTemplateBody($templateBody,$body);
+             return $content;
+         }
+        
+         
+         // langFolder found, but the requested file file does not exists inside
+         if(!file_exists("$emailTemplateDir/$langFolder/$templateBody.php")) {
+              // get the content from self::loadDefaultTemplateBody and return it
+             $content = self::loadDefaultTemplateBody($templateBody,$body);
+             return $content;
+         }
+
+         // langFolder found and the requested file exists
+         if(file_exists("$emailTemplateDir/$langFolder/$templateBody.php")){
+             // start the buffer, get data, clean the buffer and return data
+            ob_start();
+            $body ;
+            include_once "$emailTemplateDir/$langFolder/$templateBody.php";
+            $content = ob_get_contents();
+            ob_end_clean();
+           
+            return $content;
+        }
+    }
+
+    public static function loadDefaultTemplateBody($templateBody,$body){
+
+       
+        $emailTemplateDir = __DIR__.'./emailTemplates';
+        if(!is_dir(($emailTemplateDir)))
+        {
+            // no directory found, throw an error
+            throw  new \Exception("Directory $emailTemplateDir does not exists in vendor/vittascience/vutils/");
+            exit;
+        }
+
+        // parse $templateBody to find the language
+        $fileParts = explode('_',$templateBody);
+        $langFolder = ucfirst($fileParts[0]);
+
+        // langFolder not found
+        if(!is_dir("$emailTemplateDir/$langFolder")){
+            throw  new \Exception("Directory $langFolder does not exists in vendor/vittascience/vutils/EmailTemplates");
+            exit;
+        }
+
+        // $langFolder exists but the requested file does not exists
+        if(!file_exists("$emailTemplateDir/$langFolder/$templateBody.php")){
+            // no lang directory found, throw an error
+            throw  new \Exception("File $templateBody does not exists in vendor/vittascience/vutils/EmailTemplates/$langFolder");
+            exit;
+        }
+
+        // langFolder found and the requested file exists
+        if(file_exists("$emailTemplateDir/$langFolder/$templateBody.php")){
+            // start the buffer, get data, clean the buffer and return data
+            ob_start();
+            $body ;
+            include_once "$emailTemplateDir/$langFolder/$templateBody.php";
+            $content = ob_get_contents();
+            ob_end_clean();
+           
+            return $content;
+        }
+       
     }
 }
