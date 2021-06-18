@@ -106,8 +106,8 @@ class Mailer
     public static function loadDefaultTemplateBody($templateBody,$body){
 
        
-        $emailTemplateDir = __DIR__.'./emailTemplates';
-        if(!is_dir(($emailTemplateDir)))
+        $emailTemplateDir = __DIR__.'/emailTemplates';
+        if(!is_dir($emailTemplateDir))
         {
             // no directory found, throw an error
             throw  new \Exception("Directory $emailTemplateDir does not exists in vendor/vittascience/vutils/");
