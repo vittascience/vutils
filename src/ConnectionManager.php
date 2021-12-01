@@ -10,7 +10,7 @@ use DAO\UserDAO;
 class ConnectionManager
 {
     private static $sharedInstance;
-    const CONNECTION_TIMEOUT = 7200;
+    const CONNECTION_TIMEOUT = 86400;
 
     public static function getSharedInstance()
     {
