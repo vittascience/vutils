@@ -70,7 +70,7 @@ class ConnectionManager
             if ($token !== false)
                 return [$user["id"], $token];
         }
-        return ["success" => false, "error" => "wrong_cridentials"];
+        return ["success" => false, "error" => "wrong_credentials"];
     }
 
     private function createToken($id)
