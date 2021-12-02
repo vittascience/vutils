@@ -52,17 +52,25 @@ class ConnectionManager
     public function checkLogin($identifier, $password)
     {
         $regular = DatabaseManager::getSharedInstance()
-            ->get("SELECT * FROM user_regulars WHERE (id = ? OR email = ?) AND  is_active = 1", [$identifier, $identifier]);
+            ->get("SELECT * FROM user_regulars WHERE (id = ? OR email = ?)", [$identifier, $identifier]);
+
+        if ($regular['is_active'] == 0) {
+            return ["success" => false, "error" => "user_not_active"];
+        }
+
         $user = DatabaseManager::getSharedInstance()
             ->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
-        if (empty($user))
-            return false;
+
+        if (empty($user)) {
+            return ["success" => false, "error" => "user_not_found"];
+        }
+
         if (password_verify($password, $user["password"])) {
             $token = $this->createToken($user["id"]);
             if ($token !== false)
                 return [$user["id"], $token];
         }
-        return false;
+        return ["success" => false, "error" => "wrong_cridentials"];
     }
 
     private function createToken($id)
