@@ -54,7 +54,7 @@ class ConnectionManager
         $regular = DatabaseManager::getSharedInstance()
             ->get("SELECT * FROM user_regulars WHERE (id = ? OR email = ?)", [$identifier, $identifier]);
 
-        if ($regular['is_active'] == 0) {
+        if ($regular['is_active'] == 0 && $regular) {
             return ["success" => false, "error" => "user_not_active"];
         }
 
