@@ -54,23 +54,28 @@ class ConnectionManager
         $regular = DatabaseManager::getSharedInstance()
             ->get("SELECT * FROM user_regulars WHERE (id = ? OR email = ?)", [$identifier, $identifier]);
 
-        if ($regular['is_active'] == 0 && $regular) {
-            return ["success" => false, "error" => "user_not_active"];
-        }
+        if ($regular) {
+            
+            if ($regular['is_active'] == 0) {
+                return ["success" => false, "error" => "user_not_active"];
+            }
 
-        $user = DatabaseManager::getSharedInstance()
-            ->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
+            $user = DatabaseManager::getSharedInstance()->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
+    
+            if (empty($user)) {
+                return ["success" => false, "error" => "user_not_found"];
+            }
 
-        if (empty($user)) {
+            if (password_verify($password, $user["password"])) {
+                $token = $this->createToken($user["id"]);
+                if ($token !== false)
+                    return [$user["id"], $token];
+            }
+
+            return ["success" => false, "error" => "wrong_credentials"];
+        } else {
             return ["success" => false, "error" => "user_not_found"];
         }
-
-        if (password_verify($password, $user["password"])) {
-            $token = $this->createToken($user["id"]);
-            if ($token !== false)
-                return [$user["id"], $token];
-        }
-        return ["success" => false, "error" => "wrong_credentials"];
     }
 
     private function createToken($id)
