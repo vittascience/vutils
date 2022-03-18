@@ -11,6 +11,7 @@ class ConnectionManager
 {
     private static $sharedInstance;
     const CONNECTION_TIMEOUT = 86400;
+    private $errorResponse = [];
 
     public static function getSharedInstance()
     {
@@ -51,8 +52,11 @@ class ConnectionManager
 
     public function checkLogin($identifier, $password)
     {
+        // initialise error array with default value
+        $this->errorResponse = ["success" => false];
+
         $regular = DatabaseManager::getSharedInstance()
-            ->get("SELECT * FROM user_regulars WHERE (id = ? OR email = ?)", [$identifier, $identifier]);
+            ->get("SELECT * FROM user_regulars WHERE email = ?", [$identifier]);
 
         if ($regular) {
             
@@ -63,7 +67,9 @@ class ConnectionManager
             $user = DatabaseManager::getSharedInstance()->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
     
             if (empty($user)) {
-                return ["success" => false, "error" => "user_not_found"];
+                $this->errorResponse['error'] = "user_not_found";
+                $this->checkForFailedLoginAttempts();
+                return $this->errorResponse;
             }
 
             if (password_verify($password, $user["password"])) {
@@ -72,9 +78,16 @@ class ConnectionManager
                     return [$user["id"], $token];
             }
 
-            return ["success" => false, "error" => "wrong_credentials"];
+            $this->errorResponse['error'] = "wrong_credentials" ;
+            $this->checkForFailedLoginAttempts();
+            
+            return $this->errorResponse;
+            // return ["success" => false, "error" => "wrong_credentials"];
         } else {
-            return ["success" => false, "error" => "user_not_found"];
+            $this->errorResponse['error'] =  "user_not_found";
+            $this->checkForFailedLoginAttempts();
+
+            return $this->errorResponse;        
         }
     }
 
@@ -112,5 +125,28 @@ class ConnectionManager
             }
         }
         return false;
+    }
+    
+    public function checkForFailedLoginAttempts(){
+        $failedLoginAttempts = !empty($_SESSION['failedLoginAttempts']) 
+                                ? intval(++$_SESSION['failedLoginAttempts']) 
+                                :1;        
+        
+        $this->errorResponse['failedLoginAttempts'] = $failedLoginAttempts < 5 ? $failedLoginAttempts : 5 ;
+        $_SESSION['failedLoginAttempts'] = $failedLoginAttempts;
+        if($failedLoginAttempts == 5 ){
+            $_SESSION['canNotLoginBefore'] = time()+60;
+        }
+        if(!empty($_SESSION['canNotLoginBefore'])){
+            if(time() >= intval($_SESSION['canNotLoginBefore'])){
+                unset($_SESSION['canNotLoginBefore']);
+                $_SESSION['failedLoginAttempts'] = 1;
+                $this->errorResponse['failedLoginAttempts'] = 1;
+            }
+            else
+            {
+                $this->errorResponse['canNotLoginBefore'] = $_SESSION['canNotLoginBefore'];
+            }
+        }
     }
 }
