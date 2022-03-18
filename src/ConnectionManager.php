@@ -61,7 +61,9 @@ class ConnectionManager
         if ($regular) {
             
             if ($regular['is_active'] == 0) {
-                return ["success" => false, "error" => "user_not_active"];
+                $this->errorResponse['error'] = "user_not_active";
+                $this->checkForFailedLoginAttempts();
+                return $this->errorResponse;
             }
 
             $user = DatabaseManager::getSharedInstance()->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
