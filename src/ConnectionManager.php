@@ -4,14 +4,20 @@ namespace Utils;
 
 require_once(__DIR__ . "/../vendor/autoload.php");
 
-use Database\DataBaseManager;
+use DateTime;
 use DAO\UserDAO;
+use Dotenv\Dotenv;
+use DAO\UserLoginAttemptDAO;
+use Database\DataBaseManager;
 
 class ConnectionManager
 {
     private static $sharedInstance;
     const CONNECTION_TIMEOUT = 86400;
     private $errorResponse = [];
+    protected $envVariables;
+    protected $failedLoginMaxTries;
+    protected $waitingTimeBeforeNewLogin;
 
     public static function getSharedInstance()
     {
@@ -23,6 +29,15 @@ class ConnectionManager
 
     private function __construct()
     {
+        $dotenv = Dotenv::createImmutable(__DIR__ . "/../../../../");
+        $dotenv->load();
+        $this->envVariables = $_ENV;
+        $this->failedLoginMaxTries = !empty($_ENV['VS_FAILED_LOGIN_MAX_TRIES']) 
+            ? intval($_ENV['VS_FAILED_LOGIN_MAX_TRIES']) 
+            : 5;
+        $this->waitingTimeBeforeNewLogin = !empty($_ENV['VS_WAITING_TIME_BEFORE_NEW_LOGIN'])
+            ? intval($_ENV['VS_WAITING_TIME_BEFORE_NEW_LOGIN'])
+            : 120; 
     }
 
     private function checkToken($id, $token)
@@ -59,36 +74,67 @@ class ConnectionManager
             ->get("SELECT * FROM user_regulars WHERE email = ?", [$identifier]);
 
         if ($regular) {
+
+             // get the failed attempts data if any
+             $failedAttempts = UserLoginAttemptDAO::getSharedInstance()
+             ->getLoginAttemptsDataByEmail($regular['email']);
+
+         // the regular user reached the max amount of tries
+         if($failedAttempts && $failedAttempts['count'] >= $this->failedLoginMaxTries){
             
+             // the waiting time before a new try still runs
+             if( time() < $failedAttempts['can_not_login_before']){
+
+                 // create and send the response back
+                 $this->errorResponse['failedLoginAttempts'] = $failedAttempts['count'];
+                 $this->errorResponse['canNotLoginBefore'] = $failedAttempts['can_not_login_before'];
+                 return $this->errorResponse;
+             }
+
+             // the waiting time is over, remove login attempts form users_login_attempts table
+             UserLoginAttemptDAO::getSharedInstance()
+                 ->resetLoginAttemptsByEmail($regular['email']);
+         }
+
+         // the regular user account is not activated yet
             if ($regular['is_active'] == 0) {
+                
+                // save a failed login attempt in db, create and send back the response
+                $this->saveFailedLoginAttempt($regular['email']);
                 $this->errorResponse['error'] = "user_not_active";
-                $this->checkForFailedLoginAttempts();
                 return $this->errorResponse;
             }
 
-            $user = DatabaseManager::getSharedInstance()->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
+            // get the user from users table
+            $user = DatabaseManager::getSharedInstance()
+                ->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
     
+            // no user found, return an error
             if (empty($user)) {
                 $this->errorResponse['error'] = "user_not_found";
-                $this->checkForFailedLoginAttempts();
                 return $this->errorResponse;
             }
 
             if (password_verify($password, $user["password"])) {
+                // password verified, create the token
                 $token = $this->createToken($user["id"]);
-                if ($token !== false)
+                if ($token !== false){
+
+                    // remove failed login attemps if any to clean to users_login_attempts table and send data back
+                    UserLoginAttemptDAO::getSharedInstance()
+                        ->resetLoginAttemptsByEmail($regular['email']);
                     return [$user["id"], $token];
+                }
             }
 
-            $this->errorResponse['error'] = "wrong_credentials" ;
-            $this->checkForFailedLoginAttempts();
-            
+            // password has not been verified, return an error
+            $this->saveFailedLoginAttempt($regular['email']);
+            $this->errorResponse['error'] = "wrong_credentials" ;            
             return $this->errorResponse;
-            // return ["success" => false, "error" => "wrong_credentials"];
-        } else {
-            $this->errorResponse['error'] =  "user_not_found";
-            $this->checkForFailedLoginAttempts();
 
+        } else {
+            // no regular user found, return an error
+            $this->errorResponse['error'] =  "user_not_found";
             return $this->errorResponse;        
         }
     }
@@ -129,26 +175,14 @@ class ConnectionManager
         return false;
     }
     
-    public function checkForFailedLoginAttempts(){
-        $failedLoginAttempts = !empty($_SESSION['failedLoginAttempts']) 
-                                ? intval(++$_SESSION['failedLoginAttempts']) 
-                                :1;        
+    public function saveFailedLoginAttempt($email){
+        $registrationTime = time();
+        $canNotLoginBefore = $registrationTime + $this->waitingTimeBeforeNewLogin;
+        $userLoginAttempt = new \stdClass();
+        $userLoginAttempt->email = $email;
+        $userLoginAttempt->registrationTime = $registrationTime;
+        $userLoginAttempt->canNotLoginBefore = $canNotLoginBefore;
         
-        $this->errorResponse['failedLoginAttempts'] = $failedLoginAttempts < 5 ? $failedLoginAttempts : 5 ;
-        $_SESSION['failedLoginAttempts'] = $failedLoginAttempts;
-        if($failedLoginAttempts == 5 ){
-            $_SESSION['canNotLoginBefore'] = time()+60;
-        }
-        if(!empty($_SESSION['canNotLoginBefore'])){
-            if(time() >= intval($_SESSION['canNotLoginBefore'])){
-                unset($_SESSION['canNotLoginBefore']);
-                $_SESSION['failedLoginAttempts'] = 1;
-                $this->errorResponse['failedLoginAttempts'] = 1;
-            }
-            else
-            {
-                $this->errorResponse['canNotLoginBefore'] = $_SESSION['canNotLoginBefore'];
-            }
-        }
-    }
+        UserLoginAttemptDAO::getSharedInstance()->insert($userLoginAttempt);
+    }    
 }
