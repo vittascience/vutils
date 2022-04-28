@@ -106,7 +106,7 @@ class CloudStorage
                     }
                     $options = [
                         'name'    => $name,
-                        'content' => $content,
+                        'content' => file_get_contents($content),
                     ];
                     
                     $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
@@ -154,7 +154,7 @@ class CloudStorage
                         $data = file_get_contents('php://input');
                         $options = [
                             'name'    => $name,
-                            'content' => $data,
+                            'content' => file_get_contents($data),
                         ];
 
                         $dataType = $this->dataTypeFromExtension($_GET["name"]);
