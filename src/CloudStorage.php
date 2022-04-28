@@ -106,10 +106,10 @@ class CloudStorage
                     }
                     $options = [
                         'name'    => $name,
-                        'content' => file_get_contents($content),
+                        'content' => $content,
                     ];
                     
-                    $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+                    $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
                     return [
                         "name" => $name,
                         "success" => true
@@ -168,7 +168,7 @@ class CloudStorage
                         $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
                         $objectUp->delete();
 
-                        $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+                        $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
 
                         return true;
                     } else {
