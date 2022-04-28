@@ -24,7 +24,6 @@ class CloudStorage
 
     public function __construct($entityManager, $user)
     {
-        //parent::__construct($entityManager, $user);
         $this->client = new Client(['base_uri' => 'https://auth.cloud.ovh.net/v3/']);
         $this->token = new Token($this->client, new Api());
         $this->createTokenAndOpenStack($_ENV['VS_CLOUD_NAME'], $_ENV['VS_CLOUD_PASS'], $_ENV['VS_CLOUD_TENANT']);
@@ -32,14 +31,15 @@ class CloudStorage
         $this->entityManager = $entityManager;
         $this->user = $user;
 
-        if (!$user) {
+        if (!$this->user) {
             return [
-                "error" => "You must be logged in to access this resource.",
+                "error" => "You must be logged in to access to this.",
             ];
         }
+    }
 
-
-
+    public function action($action, $data = [])
+    {
         $this->actions = array(
             'adacraft' => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT" || $_SERVER['REQUEST_METHOD'] == "POST") {
@@ -79,7 +79,6 @@ class CloudStorage
                         $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
                         return [
                             "success" => true,
-                            "name" => $name,
                             "content" => $objectUp->download()->getContents(),
                         ];
                     }
@@ -166,10 +165,7 @@ class CloudStorage
                 }
             },
         );
-    }
 
-    public function action($action, $data = [])
-    {
         return call_user_func($this->actions[$action], $data);
     }
 
