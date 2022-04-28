@@ -7,11 +7,6 @@ use OpenStack\Identity\v3\Models\Token;
 use OpenStack\Identity\v3\Api;
 use OpenStack\OpenStack;
 
-// show php errors
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 class CloudStorage
 {
     protected $client;
@@ -161,6 +156,15 @@ class CloudStorage
                             'name'    => $name,
                             'content' => $data,
                         ];
+
+                        $dataType = $this->dataTypeFromExtension($_GET["name"]);
+                        if (!$dataType) {
+                            return [
+                                "success" => false,
+                                "message" => "File type not supported.",
+                            ];
+                        }
+                        
                         $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
                         $objectUp->delete();
 
@@ -192,7 +196,6 @@ class CloudStorage
         $image = ["bmp", "gif", "ico", "jpeg", "jpg", "png", "psd", "svg", "tif", "tiff"];
         $video = ["3g2", "3gp", "3gp2", "3gpp", "asf", "avi", "flv", "m4v", "mov", "mp4", "mpg", "mpeg", "mpg4", "mpe", "mpv", "ogv", "qt", "swf", "vob", "wmv"];
         $text = ["csv", "doc", "docx", "html", "json", "log", "odp", "ods", "odt", "pdf", "ppt", "pptx", "rtf", "tex", "txt", "xls", "xlsx", "xml", "yaml", "yml"];
-        $compressed = ["7z", "bz2", "gz", "rar", "tar", "zip"];
         if (in_array($type, $audio)) {
             $dataType = "audio/$type";
         } else if (in_array($type, $image)) {
@@ -201,8 +204,6 @@ class CloudStorage
             $dataType = "video/$type";
         } else if (in_array($type, $text)) {
             $dataType = "text/$type";
-        } else if (in_array($type, $compressed)) {
-            $dataType = "compressed/$type";
         } else {
             $dataType = false;
         }
