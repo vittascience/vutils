@@ -77,9 +77,17 @@ class CloudStorage
                     $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
                     if ($objExist) {
                         $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
+                        $dataType = $this->dataTypeFromExtension($_GET["name"]);
+                        if (!$dataType) {
+                            return [
+                                "success" => false,
+                                "message" => "File type not supported.",
+                            ];
+                        }
+                        $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
                         return [
                             "success" => true,
-                            "content" => $objectUp->download()->getContents(),
+                            "content" => $base64,
                         ];
                     }
                     return ["success" => false];
@@ -94,9 +102,16 @@ class CloudStorage
                     $content = file_get_contents('php://input');
                     $randomKey = md5(uniqid(rand(), true));
                     $name = $randomKey . '-' . $_GET["name"];
+                    $dataType = $this->dataTypeFromExtension($_GET["name"]);
+                    if (!$dataType) {
+                        return [
+                            "success" => false,
+                            "message" => "File type not supported.",
+                        ];
+                    }
                     $options = [
                         'name'    => $name,
-                        'content' => $content,
+                        'content' => file_get_contents($content),
                     ];
                     
                     $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
@@ -167,6 +182,31 @@ class CloudStorage
         );
 
         return call_user_func($this->actions[$action], $data);
+    }
+
+    private function dataTypeFromExtension(String $fileName):? String {
+        $path = $fileName;
+        $type = pathinfo($path, PATHINFO_EXTENSION);
+        $dataType = "";
+        $audio = ["mp3", "wav", "ogg", "flac", "aac", "m4a", "wma", "aiff", "ape", "mid", "mka", "mp2", "mp3", "mp4", "m4a", "m4b", "m4p", "m4r", "m4v", "mpa", "mpc", "mpp", "oga", "ogg", "opus", "ra", "rm", "rmi", "snd", "wav", "wma", "wv", "webm", "aac", "ac3", "aif", "aiff", "amr", "au", "caf", "dts", "flac", "m4a", "m4b", "m4p", "m4r", "m4v", "mp3", "mpc", "mpga", "oga", "ogg", "opus", "ra", "rm", "rmi", "snd", "wav", "wma", "wv", "webm"];
+        $image = ["bmp", "gif", "ico", "jpeg", "jpg", "png", "psd", "svg", "tif", "tiff"];
+        $video = ["3g2", "3gp", "3gp2", "3gpp", "asf", "avi", "flv", "m4v", "mov", "mp4", "mpg", "mpeg", "mpg4", "mpe", "mpv", "ogv", "qt", "swf", "vob", "wmv"];
+        $text = ["csv", "doc", "docx", "html", "json", "log", "odp", "ods", "odt", "pdf", "ppt", "pptx", "rtf", "tex", "txt", "xls", "xlsx", "xml", "yaml", "yml"];
+        $compressed = ["7z", "bz2", "gz", "rar", "tar", "zip"];
+        if (in_array($type, $audio)) {
+            $dataType = "audio/$type";
+        } else if (in_array($type, $image)) {
+            $dataType = "image/$type";
+        } else if (in_array($type, $video)) {
+            $dataType = "video/$type";
+        } else if (in_array($type, $text)) {
+            $dataType = "text/$type";
+        } else if (in_array($type, $compressed)) {
+            $dataType = "compressed/$type";
+        } else {
+            $dataType = false;
+        }
+        return $dataType;
     }
 
     private function createTokenAndOpenStack(String $name, String $password, String $tenant) {
