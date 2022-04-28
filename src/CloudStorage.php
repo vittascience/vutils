@@ -72,7 +72,7 @@ class CloudStorage
                   }
             },
             "get" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "PUT") {
+                if ($_SERVER['REQUEST_METHOD'] == "GET") {
                     $name = $_GET["name"];
                     $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
                     if ($objExist) {
