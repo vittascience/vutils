@@ -170,7 +170,10 @@ class CloudStorage
 
                         $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
 
-                        return true;
+                        return [
+                            "name" => $name,
+                            "success" => true
+                        ];
                     } else {
                         return [
                             "message" => "Object not found",
