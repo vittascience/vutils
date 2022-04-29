@@ -1,13 +1,14 @@
 <?php
 
-namespace Utils;
+namespace Utils\Controller;
+
 
 use GuzzleHttp\Client;
 use OpenStack\Identity\v3\Models\Token;
 use OpenStack\Identity\v3\Api;
 use OpenStack\OpenStack;
 
-class CloudStorage
+class ControllerUserAssets 
 {
     protected $client;
     protected $token;
