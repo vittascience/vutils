@@ -135,8 +135,8 @@ class ControllerUserAssets
             "delete" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "DELETE") {
                     $name = $_GET["name"];
-                    $autorization = $this->isUserLinkedToAsset($this->user['id'], $name);
-                    if ($autorization) {
+                    $authorization = $this->isUserLinkedToAsset($this->user['id'], $name);
+                    if ($authorization) {
                         $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
                         if ($objExist) {
                             $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name)->delete();
@@ -167,8 +167,8 @@ class ControllerUserAssets
             "update" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT") {
                     $name = $_GET["name"];
-                    $autorization = $this->isUserLinkedToAsset($this->user['id'], $name);
-                    if ($autorization) {
+                    $authorization = $this->isUserLinkedToAsset($this->user['id'], $name);
+                    if ($authorization) {
                         $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
                         if ($objExist) {
                             $data = file_get_contents('php://input');
@@ -203,6 +203,39 @@ class ControllerUserAssets
                             "success" => false
                         ];
                     }
+                } else {
+                    return [
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "multiple-file-put" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "PUT") {
+                    $content = file_get_contents('php://input');
+                    
+                    $randomKey = md5(uniqid(rand(), true));
+                    $name = $randomKey . '-' . $_GET["name"];
+                    $isPublic = $_GET["isPublic"] == "true" ? true : false;
+
+
+                    $dataType = $this->dataTypeFromExtension($_GET["name"]);
+                    if (!$dataType) {
+                        return [
+                            "success" => false,
+                            "message" => "File type not supported.",
+                        ];
+                    }
+                    $options = [
+                        'name'    => $name,
+                        'content' => file_get_contents($content),
+                    ];
+                    
+                    $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+                    $this->linkAssetToUser($this->user['id'], $name, $isPublic);
+                    return [
+                        "name" => $name,
+                        "success" => true
+                    ];
                 } else {
                     return [
                         "error" => "Method not allowed",
