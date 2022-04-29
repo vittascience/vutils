@@ -2,6 +2,8 @@
 
 namespace Utils\Entity;
 
+
+use User\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
 

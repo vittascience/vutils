@@ -2,11 +2,12 @@
 
 namespace Utils\Controller;
 
-
+use User\Entity\User;
 use GuzzleHttp\Client;
-use OpenStack\Identity\v3\Models\Token;
-use OpenStack\Identity\v3\Api;
 use OpenStack\OpenStack;
+use Utils\Entity\UserAssets;
+use OpenStack\Identity\v3\Api;
+use OpenStack\Identity\v3\Models\Token;
 
 class ControllerUserAssets 
 {
@@ -26,16 +27,15 @@ class ControllerUserAssets
         $this->target = htmlspecialchars($_GET["target"]);
         $this->entityManager = $entityManager;
         $this->user = $user;
-
-        if (!$this->user) {
-            return [
-                "error" => "You must be logged in to access to this.",
-            ];
-        }
     }
 
     public function action($action, $data = [])
     {
+        if (empty($this->user)) {
+            return [
+                "error" => "You must be logged in to access to this.",
+            ];
+        }
         $this->actions = array(
             'adacraft' => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT" || $_SERVER['REQUEST_METHOD'] == "POST") {
@@ -70,23 +70,32 @@ class ControllerUserAssets
             "get" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "GET") {
                     $name = $_GET["name"];
-                    $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
-                    if ($objExist) {
-                        $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
-                        $dataType = $this->dataTypeFromExtension($_GET["name"]);
-                        if (!$dataType) {
+                    $isPublic = $this->isTheAssetPublic($name);
+                    $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $name);
+                    if ($isPublic || $assetOwner) {
+                        $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
+                        if ($objExist) {
+                            $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
+                            $dataType = $this->dataTypeFromExtension($_GET["name"]);
+                            if (!$dataType) {
+                                return [
+                                    "success" => false,
+                                    "message" => "File type not supported.",
+                                ];
+                            }
+                            $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
                             return [
-                                "success" => false,
-                                "message" => "File type not supported.",
+                                "success" => true,
+                                "content" => $base64,
                             ];
                         }
-                        $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
+                        return ["success" => false];
+                    } else {
                         return [
-                            "success" => true,
-                            "content" => $base64,
+                            "success" => false,
+                            "message" => "You don't have access to this file.",
                         ];
                     }
-                    return ["success" => false];
                 } else {
                     return [
                         "error" => "Method not allowed",
@@ -98,6 +107,7 @@ class ControllerUserAssets
                     $content = file_get_contents('php://input');
                     $randomKey = md5(uniqid(rand(), true));
                     $name = $randomKey . '-' . $_GET["name"];
+                    $isPublic = $_GET["isPublic"] == "true" ? true : false;
                     $dataType = $this->dataTypeFromExtension($_GET["name"]);
                     if (!$dataType) {
                         return [
@@ -111,6 +121,7 @@ class ControllerUserAssets
                     ];
                     
                     $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+                    $this->linkAssetToUser($this->user['id'], $name, $isPublic);
                     return [
                         "name" => $name,
                         "success" => true
@@ -124,22 +135,28 @@ class ControllerUserAssets
             "delete" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "DELETE") {
                     $name = $_GET["name"];
-                    $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
-                    if ($objExist) {
-                        // get obj
-                        $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
-                        $objectUp->delete();
-                        return [
-                            "name" => $name,
-                            "success" => true
-                        ];
+                    $autorization = $this->isUserLinkedToAsset($this->user['id'], $name);
+                    if ($autorization) {
+                        $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
+                        if ($objExist) {
+                            $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name)->delete();
+                            $this->deleteUserLinkAsset($this->user['id'], $name);
+                            return [
+                                "name" => $name,
+                                "success" => true
+                            ];
+                        } else {
+                            return [
+                                "message" => "Object not found",
+                                "success" => false
+                            ];
+                        }
                     } else {
                         return [
-                            "message" => "Object not found",
-                            "success" => false
+                            "success" => false,
+                            "message" => "You are not authorized to delete this asset.",
                         ];
                     }
-                    return false;
                 } else {
                     return [
                         "error" => "Method not allowed",
@@ -150,34 +167,39 @@ class ControllerUserAssets
             "update" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT") {
                     $name = $_GET["name"];
-                    $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
-                    if ($objExist) {
-                        $data = file_get_contents('php://input');
-                        $options = [
-                            'name'    => $name,
-                            'content' => file_get_contents($data),
-                        ];
-
-                        $dataType = $this->dataTypeFromExtension($_GET["name"]);
-                        if (!$dataType) {
+                    $autorization = $this->isUserLinkedToAsset($this->user['id'], $name);
+                    if ($autorization) {
+                        $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
+                        if ($objExist) {
+                            $data = file_get_contents('php://input');
+                            $options = [
+                                'name'    => $name,
+                                'content' => file_get_contents($data),
+                            ];
+    
+                            $dataType = $this->dataTypeFromExtension($_GET["name"]);
+                            if (!$dataType) {
+                                return [
+                                    "success" => false,
+                                    "message" => "File type not supported.",
+                                ];
+                            }
+                            $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name)->delete();
+                            $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+    
                             return [
-                                "success" => false,
-                                "message" => "File type not supported.",
+                                "name" => $name,
+                                "success" => true
+                            ];
+                        } else {
+                            return [
+                                "message" => "Object not found",
+                                "success" => false
                             ];
                         }
-                        
-                        $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name);
-                        $objectUp->delete();
-
-                        $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
-
-                        return [
-                            "name" => $name,
-                            "success" => true
-                        ];
                     } else {
                         return [
-                            "message" => "Object not found",
+                            "message" => "You are not allowed to update this asset",
                             "success" => false
                         ];
                     }
@@ -190,6 +212,43 @@ class ControllerUserAssets
         );
 
         return call_user_func($this->actions[$action], $data);
+    }
+
+    private function linkAssetToUser(String $userId, String $link, Bool $isPublic)
+    {
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $userId]);
+        $test = new UserAssets();
+        $test->setUser($user);
+        $test->setLink($link);
+        $test->setIsPublic($isPublic);
+        $this->entityManager->persist($test);
+        $this->entityManager->flush();
+    }
+
+    private function deleteUserLinkAsset(String $userId, String $link)
+    {
+        $test = $this->entityManager->getRepository(UserAssets::class)->findOneBy(['user' => $userId, 'link' => $link]);
+        $this->entityManager->remove($test);
+        $this->entityManager->flush();
+    }
+
+    private function isUserLinkedToAsset(String $userId, String $link): bool
+    {
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $userId]);
+        $test = $this->entityManager->getRepository(UserAssets::class)->findOneBy(['user' => $user, 'link' => $link]);
+        if ($test) {
+            return true;
+        }
+        return false;
+    }
+
+    private function isTheAssetPublic(String $link): bool
+    {
+        $test = $this->entityManager->getRepository(UserAssets::class)->findOneBy(['link' => $link]);
+        if ($test) {
+            return $test->getIsPublic();
+        }
+        return false;
     }
 
     private function dataTypeFromExtension(String $fileName):? String {
