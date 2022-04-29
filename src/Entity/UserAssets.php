@@ -88,7 +88,7 @@ class UserAssets
     /**
      * @return bool
      */
-    public function isPublic(): ?bool
+    public function getisPublic(): ?bool
     {
         return $this->isPublic;
     }
@@ -111,7 +111,7 @@ class UserAssets
             'id' => $this->getId(),
             'user' => $this->getUser(),
             'link' => $this->getLink(),
-            'isPublic' => $this->isPublic()
+            'isPublic' => $this->getisPublic()
         ];
     }
 
