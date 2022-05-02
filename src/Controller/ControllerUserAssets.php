@@ -311,6 +311,37 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "ai-delete" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "DELETE") {
+                    $key = $_GET["key"];
+                    $filesNames = [
+                        "meta" => "$key-metadata.json",
+                        "json" => "$key-model.json",
+                        "bin" => "$key-model.weights.bin",
+                    ];
+
+                    foreach ($filesNames as $fileName) {
+                        $isPublic = $this->isTheAssetPublic($fileName);
+                        $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
+                        if ($isPublic || $assetOwner) {
+                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($fileName);
+                            if ($objExist) {
+                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($fileName)->delete();
+                                $this->deleteUserLinkAsset($this->user['id'], $fileName);
+                            }
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                    ];
+
+                } else {
+                    return [
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
