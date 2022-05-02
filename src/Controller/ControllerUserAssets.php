@@ -398,6 +398,9 @@ class ControllerUserAssets
         $image = ["bmp", "gif", "ico", "jpeg", "jpg", "png", "psd", "svg", "tif", "tiff"];
         $video = ["3g2", "3gp", "3gp2", "3gpp", "asf", "avi", "flv", "m4v", "mov", "mp4", "mpg", "mpeg", "mpg4", "mpe", "mpv", "ogv", "qt", "swf", "vob", "wmv"];
         $text = ["csv", "doc", "docx", "html", "json", "log", "odp", "ods", "odt", "pdf", "ppt", "pptx", "rtf", "tex", "txt", "xls", "xlsx", "xml", "yaml", "yml"];
+        $octet = ["bin"];
+        // bin file
+
         if (in_array($type, $audio)) {
             $dataType = "audio/$type";
         } else if (in_array($type, $image)) {
@@ -406,6 +409,8 @@ class ControllerUserAssets
             $dataType = "video/$type";
         } else if (in_array($type, $text)) {
             $dataType = "text/$type";
+        } else if (in_array($type, $octet)) {
+            $dataType = "application/octet-stream";
         } else {
             $dataType = false;
         }
