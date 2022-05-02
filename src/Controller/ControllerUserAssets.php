@@ -275,7 +275,7 @@ class ControllerUserAssets
                     $Files = [];
 
                     $filesNames = [
-                        "meta" => "$key-meta.json",
+                        "meta" => "$key-metadata.json",
                         "json" => "$key-model.json",
                         "bin" => "$key-model.weights.bin",
                     ];
