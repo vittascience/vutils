@@ -216,12 +216,13 @@ class ControllerUserAssets
                 }
             },
             "ai-put" => function () {
+                $key = empty($_GET["key"]) ? null : $_GET["key"];
                 $files_array = $_FILES;
                 $isPublic = true;
                 $files_name = [];
                 $randomKey = md5(uniqid(rand(), true));
                 foreach ($files_array as $file) {
-                    $name = $randomKey . '-' . $file['name'];
+                    $name = !empty($key) ? $key . '-' . $file['name'] : $randomKey . '-' . $file['name'];
                     $files_name[] = $name;
                     $content = $file['tmp_name'];
                     $options = [
@@ -229,7 +230,12 @@ class ControllerUserAssets
                         'content' => file_get_contents($content),
                     ];
                     
-                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                    if (!empty($key)) {
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                    } else {
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                    }
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
 
                 }
