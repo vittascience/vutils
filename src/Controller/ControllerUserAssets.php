@@ -190,7 +190,6 @@ class ControllerUserAssets
                                     "message" => "File type not supported.",
                                 ];
                             }
-                            $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name)->delete();
                             $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
     
                             return [
@@ -229,13 +228,8 @@ class ControllerUserAssets
                         'name'    => $name,
                         'content' => file_get_contents($content),
                     ];
-                    
-                    if (!empty($key)) {
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                    } else {
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                    }
+
+                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
 
                 }
@@ -399,7 +393,6 @@ class ControllerUserAssets
         $video = ["3g2", "3gp", "3gp2", "3gpp", "asf", "avi", "flv", "m4v", "mov", "mp4", "mpg", "mpeg", "mpg4", "mpe", "mpv", "ogv", "qt", "swf", "vob", "wmv"];
         $text = ["csv", "doc", "docx", "html", "json", "log", "odp", "ods", "odt", "pdf", "ppt", "pptx", "rtf", "tex", "txt", "xls", "xlsx", "xml", "yaml", "yml"];
         $octet = ["bin"];
-        // bin file
 
         if (in_array($type, $audio)) {
             $dataType = "audio/$type";
