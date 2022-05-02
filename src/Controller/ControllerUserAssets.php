@@ -220,14 +220,10 @@ class ControllerUserAssets
                 $isPublic = true;
                 $files_name = [];
                 $randomKey = md5(uniqid(rand(), true));
-                //print_r($_FILES);
                 foreach ($files_array as $file) {
                     $name = $randomKey . '-' . $file['name'];
                     $files_name[] = $name;
                     $content = $file['tmp_name'];
-                    if ($file['error'])
-                        print_r($file['error']);
-
                     $options = [
                         'name'    => $name,
                         'content' => file_get_contents($content),
@@ -241,6 +237,79 @@ class ControllerUserAssets
                     "name" => $files_name,
                     "success" => true
                 ];   
+            },
+            "ai-put-meta" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "PUT") {
+                    $content = file_get_contents('php://input');
+                    $key = $_GET["key"];
+                    $name = $key . '-' . $_GET["name"];
+                    $isPublic = $_GET["isPublic"] == "true" ? true : false;
+                    $dataType = $this->dataTypeFromExtension($_GET["name"]);
+                    if (!$dataType) {
+                        return [
+                            "success" => false,
+                            "message" => "File type not supported.",
+                        ];
+                    }
+
+                    $options = [
+                        'name'    => $name,
+                        'content' => file_get_contents($content),
+                    ];
+                    
+                    $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+                    $this->linkAssetToUser($this->user['id'], $name, $isPublic);
+                    return [
+                        "name" => $name,
+                        "success" => true
+                    ];
+                } else {
+                    return [
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "ai-get" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "GET") {
+                    $key = $_GET["key"];
+                    $Files = [];
+
+                    $filesNames = [
+                        "meta" => "$key-meta.json",
+                        "json" => "$key-model.json",
+                        "bin" => "$key-model.weights.bin",
+                    ];
+
+                    foreach ($filesNames as $fileName) {
+                        $isPublic = $this->isTheAssetPublic($fileName);
+                        $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
+                        if ($isPublic || $assetOwner) {
+                            $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($fileName);
+                            if ($objExist) {
+                                $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($fileName);
+                                $dataType = $this->dataTypeFromExtension($fileName);
+                                if (!$dataType) {
+                                    return [
+                                        "success" => false,
+                                        "message" => "File type not supported.",
+                                    ];
+                                }
+                                $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
+                                $Files[$fileName] = $base64;
+                            }
+                        } 
+                    }
+
+                    return [
+                        "success" => true,
+                        "files" => $Files,
+                    ];
+
+                } else {
+                    return [
+                        "error" => "Method not allowed",
+                    ];
+                }
             },
         );
 
