@@ -9,6 +9,12 @@ use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use OpenStack\Identity\v3\Models\Token;
 
+//show php errors
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+
 class ControllerUserAssets 
 {
     protected $client;
@@ -24,7 +30,7 @@ class ControllerUserAssets
         $this->client = new Client(['base_uri' => 'https://auth.cloud.ovh.net/v3/']);
         $this->token = new Token($this->client, new Api());
         $this->createTokenAndOpenStack($_ENV['VS_CLOUD_NAME'], $_ENV['VS_CLOUD_PASS'], $_ENV['VS_CLOUD_TENANT']);
-        $this->target = htmlspecialchars($_GET["target"]);
+        $this->target = empty($_GET["target"]) ? null : htmlspecialchars($_GET["target"]);
         $this->entityManager = $entityManager;
         $this->user = $user;
     }
@@ -209,38 +215,32 @@ class ControllerUserAssets
                     ];
                 }
             },
-            "multiple-file-put" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "PUT") {
-                    $content = file_get_contents('php://input');
-                    
-                    $randomKey = md5(uniqid(rand(), true));
-                    $name = $randomKey . '-' . $_GET["name"];
-                    $isPublic = $_GET["isPublic"] == "true" ? true : false;
+            "ai-put" => function () {
+                $files_array = $_FILES;
+                $isPublic = true;
+                $files_name = [];
+                $randomKey = md5(uniqid(rand(), true));
+                //print_r($_FILES);
+                foreach ($files_array as $file) {
+                    $name = $randomKey . '-' . $file['name'];
+                    $files_name[] = $name;
+                    $content = $file['tmp_name'];
+                    if ($file['error'])
+                        print_r($file['error']);
 
-
-                    $dataType = $this->dataTypeFromExtension($_GET["name"]);
-                    if (!$dataType) {
-                        return [
-                            "success" => false,
-                            "message" => "File type not supported.",
-                        ];
-                    }
                     $options = [
                         'name'    => $name,
                         'content' => file_get_contents($content),
                     ];
                     
-                    $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
-                    return [
-                        "name" => $name,
-                        "success" => true
-                    ];
-                } else {
-                    return [
-                        "error" => "Method not allowed",
-                    ];
+
                 }
+                return [
+                    "name" => $files_name,
+                    "success" => true
+                ];   
             },
         );
 
