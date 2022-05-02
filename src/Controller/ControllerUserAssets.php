@@ -9,11 +9,6 @@ use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use OpenStack\Identity\v3\Models\Token;
 
-//show php errors
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 
 class ControllerUserAssets 
 {
