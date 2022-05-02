@@ -253,11 +253,11 @@ class ControllerUserAssets
                     }
 
                     $options = [
-                        'name'    => $name,
+                        'name' => $name,
                         'content' => file_get_contents($content),
                     ];
                     
-                    $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
+                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
                     return [
                         "name" => $name,
@@ -284,9 +284,9 @@ class ControllerUserAssets
                         $isPublic = $this->isTheAssetPublic($fileName);
                         $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
                         if ($isPublic || $assetOwner) {
-                            $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($fileName);
+                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($fileName);
                             if ($objExist) {
-                                $objectUp = $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($fileName);
+                                $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($fileName);
                                 $dataType = $this->dataTypeFromExtension($fileName);
                                 if (!$dataType) {
                                     return [
