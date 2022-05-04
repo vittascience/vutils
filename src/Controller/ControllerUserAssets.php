@@ -188,7 +188,7 @@ class ControllerUserAssets
                                 ];
                             }
 
-                            $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name)->delete();
+                            //$this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name)->delete();
                             $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
     
                             return [
@@ -228,9 +228,9 @@ class ControllerUserAssets
                         'content' => file_get_contents($content),
                     ];
 
-                    if (!empty($key)) {
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                    }
+                    //if (!empty($key)) {
+                    //    $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
+                    //}
 
                     $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
