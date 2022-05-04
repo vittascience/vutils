@@ -28,11 +28,13 @@ class ControllerUserAssets
         $this->target = empty($_GET["target"]) ? null : htmlspecialchars($_GET["target"]);
         $this->entityManager = $entityManager;
         $this->user = $user;
+        $this->whiteList = ["adacraft", "ai-get"];
     }
 
     public function action($action, $data = [])
     {
-        if (empty($this->user)) {
+
+        if (empty($this->user) && !in_array($action, $this->whiteList)) {
             return [
                 "error" => "You must be logged in to access to this.",
             ];
@@ -276,8 +278,13 @@ class ControllerUserAssets
                     ];
 
                     foreach ($filesNames as $fileName) {
+
                         $isPublic = $this->isTheAssetPublic($fileName);
-                        $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
+                        $assetOwner = false;
+                        if (!empty($this->user)) {
+                            $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
+                        }
+
                         if ($isPublic || $assetOwner) {
                             $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($fileName);
                             if ($objExist) {
