@@ -350,6 +350,73 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "ai-upload-imgs" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "DELETE") {
+                    $request = json_decode($data['data'] ?? '{}', true);
+                    $key = $request['key'];
+                    $images = $request['images'];
+
+                    if (!$key) {
+                        $key = md5(uniqid(rand(), true));
+                    }
+
+                    $imagesToDelete = [];
+                    $imagesLinks = [];
+
+                    // get all linked image with the user who start by the key
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+
+                    $toDelete = true;
+                    foreach ($existingImages as $existingImage) {
+                        foreach ($images as $image) {
+                            if ($existingImage->getName() == $image['id']) {
+                                $toDelete = false; 
+                            }
+                        }
+                        if (!$toDelete) {
+                            $imagesToDelete[] = $existingImage->getName();
+                        }
+                    }
+
+                    // Delete all image that are not in the new list
+                    foreach ($imagesToDelete as $imageToDelete) {
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($imageToDelete)->delete();
+                        $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
+                    }
+
+                    foreach ($images as $image) {
+
+                        $name = $key . '-' . $image['id'] . '.jpg';
+                        //check if the image already exists
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
+                        if ($image['content'] != false && $objExist) {
+                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
+
+                            $content = $image['content'];
+                            $options = [
+                                'name'    => $name,
+                                'content' => file_get_contents($content),
+                            ];
+    
+                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                            $this->linkAssetToUser($this->user['id'], $name, true);
+                            $imagesLinks[] = $name;
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $imagesLinks,
+                        "key" => $key,
+                    ];
+
+                } else {
+                    return [
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
