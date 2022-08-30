@@ -351,7 +351,7 @@ class ControllerUserAssets
                 }
             },
             "ai-upload-imgs" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "DELETE") {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = json_decode($data['data'] ?? '{}', true);
                     $key = $request['key'];
                     $images = $request['images'];
