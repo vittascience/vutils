@@ -352,8 +352,8 @@ class ControllerUserAssets
             },
             "ai-upload-imgs" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $request = json_decode($data['data'] ?? '{}', true);
-                    $key = $request['key'];
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
                     $images = $request['images'];
 
                     if (!$key) {
@@ -392,17 +392,19 @@ class ControllerUserAssets
                         $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
                         if ($image['content'] != false && $objExist) {
                             $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-
-                            $content = $image['content'];
-                            $options = [
-                                'name'    => $name,
-                                'content' => file_get_contents($content),
-                            ];
-    
-                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                            $this->linkAssetToUser($this->user['id'], $name, true);
-                            $imagesLinks[] = $name;
+                        } else if ($image['content'] == false) {
+                            continue;
                         }
+
+                        $content = $image['content'];
+                        $options = [
+                            'name'    => $name,
+                            'content' => file_get_contents($content),
+                        ];
+
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                        $this->linkAssetToUser($this->user['id'], $name, true);
+                        $imagesLinks[] = $name;
                     }
 
                     return [
