@@ -370,12 +370,12 @@ class ControllerUserAssets
                     $toDelete = true;
                     foreach ($existingImages as $existingImage) {
                         foreach ($images as $image) {
-                            if ($existingImage->getName() == $image['id']) {
+                            if ($existingImage->getLink() == $image['id']) {
                                 $toDelete = false; 
                             }
                         }
                         if (!$toDelete) {
-                            $imagesToDelete[] = $existingImage->getName();
+                            $imagesToDelete[] = $existingImage->getLink();
                         }
                     }
 
@@ -415,6 +415,7 @@ class ControllerUserAssets
 
                 } else {
                     return [
+                        "success" => false,
                         "error" => "Method not allowed",
                     ];
                 }
@@ -442,13 +443,13 @@ class ControllerUserAssets
                     // get all linked image with the user who start by the key
                     $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
                     foreach ($existingImages as $image) {
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($image->getName());
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($image->getLink());
                         if ($objExist) {
-                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($image->getName());
-                            $dataType = $this->dataTypeFromExtension($image->getName());
+                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($image->getLink());
+                            $dataType = $this->dataTypeFromExtension($image->getLink());
                             $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
                             $imagesToGet[] = [
-                                "id" => $image->getName(),
+                                "id" => $image->getLink(),
                                 "content" => $base64,
                             ];   
                         }
@@ -461,6 +462,7 @@ class ControllerUserAssets
 
                 } else {
                     return [
+                        "success" => true,
                         "error" => "Method not allowed",
                     ];
                 }
