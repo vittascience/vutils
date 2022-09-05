@@ -419,6 +419,52 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "ai-get-imgs" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "No key provided",
+                        ];
+                    }
+                    
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    if (!$user) {
+                        return [
+                            "success" => false,
+                            "message" => "User not found",
+                        ];
+                    }
+
+                    $imagesToGet = [];
+                    // get all linked image with the user who start by the key
+                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                    foreach ($existingImages as $image) {
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($image->getName());
+                        if ($objExist) {
+                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($image->getName());
+                            $dataType = $this->dataTypeFromExtension($image->getName());
+                            $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
+                            $imagesToGet[] = [
+                                "id" => $image->getName(),
+                                "content" => $base64,
+                            ];   
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $imagesToGet,
+                    ];
+
+                } else {
+                    return [
+                        "error" => "Method not allowed",
+                    ];
+                }
+            }
         );
 
         return call_user_func($this->actions[$action], $data);
