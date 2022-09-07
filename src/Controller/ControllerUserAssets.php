@@ -390,9 +390,9 @@ class ControllerUserAssets
                         $name = $key . '-' . $image['id'] . '.jpg';
                         //check if the image already exists
                         $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
-                        if ($image['content'] != false && $objExist) {
+                        if ($image['content'] != 'false' && $objExist) {
                             $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                        } else if ($image['content'] == false) {
+                        } else if ($image['content'] == 'false') {
                             continue;
                         }
 
@@ -462,7 +462,40 @@ class ControllerUserAssets
 
                 } else {
                     return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "ai-delete-imgs" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $check = $this->checkKeyAndUser($key, $user);
+                    if ($check['success'] == false) {
+                        return $check;
+                    }
+
+                    $assetsDeleted = [];
+                    // get all linked image with the user who start by the key
+                    $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                    foreach ($existingAssets as $asset) {
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
+                        if ($objExist) {
+                            $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($asset->getLink())->delete();
+                            $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());  
+                            $assetsDeleted[] = $asset->getLink();
+                        }
+                    }
+
+                    return [
                         "success" => true,
+                        "images" => $assetsDeleted,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
                         "error" => "Method not allowed",
                     ];
                 }
@@ -470,6 +503,27 @@ class ControllerUserAssets
         );
 
         return call_user_func($this->actions[$action], $data);
+    }
+
+    private function checkKeyAndUser($key, $user)
+    {
+        if (!$user) {
+            return [
+                "success" => false,
+                "message" => "User not found",
+            ];
+        }
+
+        if (!$key) {
+            return [
+                "success" => false,
+                "message" => "No key provided",
+            ];
+        }
+
+        return [
+            "success" => true
+        ];
     }
 
     private function linkAssetToUser(String $userId, String $link, Bool $isPublic)
