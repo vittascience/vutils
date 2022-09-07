@@ -469,7 +469,7 @@ class ControllerUserAssets
             },
             "delete-assets" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $keys = !empty($_POST['keys']) ? json_decode($_POST['keys']) : null;
+                    $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
 
                     foreach ($keys as $key) {
@@ -495,7 +495,7 @@ class ControllerUserAssets
 
                     return [
                         "success" => true,
-                        "images" => $assetsDeleted,
+                        "assets" => $assetsDeleted,
                     ];
 
                 } else {
