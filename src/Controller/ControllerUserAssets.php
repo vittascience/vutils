@@ -482,7 +482,7 @@ class ControllerUserAssets
                     foreach ($existingAssets as $asset) {
                         $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
                         if ($objExist) {
-                            $this->openstack->objectStoreV1()->getContainer($this->target)->getObject($asset->getLink())->delete();
+                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink())->delete();
                             $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());  
                             $assetsDeleted[] = $asset->getLink();
                         }
