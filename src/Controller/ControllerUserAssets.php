@@ -467,24 +467,29 @@ class ControllerUserAssets
                     ];
                 }
             },
-            "ai-delete-imgs" => function () {
+            "delete-assets" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+                    $keys = !empty($_POST['keys']) ? json_decode($_POST['keys']) : null;
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $check = $this->checkKeyAndUser($key, $user);
-                    if ($check['success'] == false) {
-                        return $check;
+
+                    foreach ($keys as $key) {
+                        $check = $this->checkKeyAndUser($key, $user);
+                        if ($check['success'] == false) {
+                            return $check;
+                        }
                     }
 
                     $assetsDeleted = [];
                     // get all linked image with the user who start by the key
-                    $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
-                    foreach ($existingAssets as $asset) {
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
-                        if ($objExist) {
-                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink())->delete();
-                            $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());  
-                            $assetsDeleted[] = $asset->getLink();
+                    foreach ($keys as $key) {
+                        $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                        foreach ($existingAssets as $asset) {
+                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
+                            if ($objExist) {
+                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink())->delete();
+                                $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());  
+                                $assetsDeleted[] = $asset->getLink();
+                            }
                         }
                     }
 
