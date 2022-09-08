@@ -441,7 +441,7 @@ class ControllerUserAssets
 
                     $imagesToGet = [];
                     // get all linked image with the user who start by the key
-                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
                     foreach ($existingImages as $image) {
                         $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($image->getLink());
                         if ($objExist) {
@@ -496,6 +496,54 @@ class ControllerUserAssets
                     return [
                         "success" => true,
                         "assets" => $assetsDeleted,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "duplicate-assets" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+
+                    foreach ($keys as $key) {
+                        $check = $this->checkKeyAndUser($key, $user);
+                        if ($check['success'] == false) {
+                            return $check;
+                        }
+                    }
+
+                    $duplicatedKey = $key = md5(uniqid(rand(), true));
+                    $assetsDuplicated = [];
+                    // get all linked image with the user who start by the key
+                    foreach ($keys as $key) {
+                        $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
+                        foreach ($existingAssets as $asset) {
+                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
+                            if ($objExist) {
+
+                                $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink());
+                                $dataType = $this->dataTypeFromExtension($asset->getLink());
+                                $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
+                                $newAssetLink = str_replace($key, $duplicatedKey, $asset->getLink());
+                                $options = [
+                                    'name'    => $newAssetLink,
+                                    'content' => $base64,
+                                ];
+                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                                $this->deleteUserLinkAsset($this->user['id'], $newAssetLink);  
+                                $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
+                            }
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                        "assets" => $assetsDuplicated,
                     ];
 
                 } else {

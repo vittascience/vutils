@@ -17,4 +17,16 @@ class UserAssetsRepository extends EntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function getPublicAssetsQueryBuilderWithPrefixedKey(String $key)
+    {
+        return $this->getEntityManager()->createQueryBuilder()->select('ua')
+            ->from("Utils\Entity\UserAssets", 'ua')
+            ->where('ua.user = :user')
+            ->andWhere('ua.link LIKE :key')
+            ->andWhere('ua.isPublic = 1')
+            ->setParameters(['key' => $key . '%'])
+            ->getQuery()
+            ->getResult();
+    }
 }
