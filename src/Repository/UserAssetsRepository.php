@@ -22,8 +22,7 @@ class UserAssetsRepository extends EntityRepository
     {
         return $this->getEntityManager()->createQueryBuilder()->select('ua')
             ->from("Utils\Entity\UserAssets", 'ua')
-            ->where('ua.user = :user')
-            ->andWhere('ua.link LIKE :key')
+            ->where('ua.link LIKE :key')
             ->andWhere('ua.isPublic = 1')
             ->setParameters(['key' => $key . '%'])
             ->getQuery()
