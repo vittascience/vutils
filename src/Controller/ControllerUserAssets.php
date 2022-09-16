@@ -528,14 +528,13 @@ class ControllerUserAssets
 
                                 $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink());
                                 $dataType = $this->dataTypeFromExtension($asset->getLink());
-                                $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
                                 $newAssetLink = str_replace($key, $duplicatedKey, $asset->getLink());
                                 $options = [
                                     'name'    => $newAssetLink,
-                                    'content' => $base64,
-                                ];
+                                    'content' => $objectUp->download()->getContents(),
+                                 ];
                                 $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                                $this->deleteUserLinkAsset($this->user['id'], $newAssetLink);  
+                                $this->linkAssetToUser($this->user['id'], $newAssetLink, true);  
                                 $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
                             }
                         }
