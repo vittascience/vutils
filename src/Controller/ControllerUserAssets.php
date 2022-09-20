@@ -350,9 +350,232 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "ai-upload-imgs" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $images = $request['images'];
+
+                    if (!$key) {
+                        $key = md5(uniqid(rand(), true));
+                    }
+
+                    $imagesToDelete = [];
+                    $imagesLinks = [];
+
+                    // get all linked image with the user who start by the key
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+
+                    $toDelete = true;
+                    foreach ($existingImages as $existingImage) {
+                        foreach ($images as $image) {
+                            if ($existingImage->getLink() == $image['id']) {
+                                $toDelete = false; 
+                            }
+                        }
+                        if (!$toDelete) {
+                            $imagesToDelete[] = $existingImage->getLink();
+                        }
+                    }
+
+                    // Delete all image that are not in the new list
+                    foreach ($imagesToDelete as $imageToDelete) {
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($imageToDelete)->delete();
+                        $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
+                    }
+
+                    foreach ($images as $image) {
+
+                        $name = $key . '-' . $image['id'] . '.jpg';
+                        //check if the image already exists
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
+                        if ($image['content'] != 'false' && $objExist) {
+                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
+                        } else if ($image['content'] == 'false') {
+                            continue;
+                        }
+
+                        $content = $image['content'];
+                        $options = [
+                            'name'    => $name,
+                            'content' => file_get_contents($content),
+                        ];
+
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                        $this->linkAssetToUser($this->user['id'], $name, true);
+                        $imagesLinks[] = $name;
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $imagesLinks,
+                        "key" => $key,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "ai-get-imgs" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "No key provided",
+                        ];
+                    }
+                    
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    if (!$user) {
+                        return [
+                            "success" => false,
+                            "message" => "User not found",
+                        ];
+                    }
+
+                    $imagesToGet = [];
+                    // get all linked image with the user who start by the key
+                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
+                    foreach ($existingImages as $image) {
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($image->getLink());
+                        if ($objExist) {
+                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($image->getLink());
+                            $dataType = $this->dataTypeFromExtension($image->getLink());
+                            $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
+                            $imagesToGet[] = [
+                                "id" => $image->getLink(),
+                                "content" => $base64,
+                            ];   
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $imagesToGet,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "delete-assets" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+
+                    foreach ($keys as $key) {
+                        $check = $this->checkKeyAndUser($key, $user);
+                        if ($check['success'] == false) {
+                            return $check;
+                        }
+                    }
+
+                    $assetsDeleted = [];
+                    // get all linked image with the user who start by the key
+                    foreach ($keys as $key) {
+                        $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                        foreach ($existingAssets as $asset) {
+                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
+                            if ($objExist) {
+                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink())->delete();
+                                $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());  
+                                $assetsDeleted[] = $asset->getLink();
+                            }
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                        "assets" => $assetsDeleted,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "duplicate-assets" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+
+                    foreach ($keys as $key) {
+                        $check = $this->checkKeyAndUser($key, $user);
+                        if ($check['success'] == false) {
+                            return $check;
+                        }
+                    }
+
+                    $duplicatedKey = $key = md5(uniqid(rand(), true));
+                    $assetsDuplicated = [];
+                    // get all linked image with the user who start by the key
+                    foreach ($keys as $key) {
+                        $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
+                        foreach ($existingAssets as $asset) {
+                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
+                            if ($objExist) {
+
+                                $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink());
+                                $dataType = $this->dataTypeFromExtension($asset->getLink());
+                                $newAssetLink = str_replace($key, $duplicatedKey, $asset->getLink());
+                                $options = [
+                                    'name'    => $newAssetLink,
+                                    'content' => $objectUp->download()->getContents(),
+                                 ];
+                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                                $this->linkAssetToUser($this->user['id'], $newAssetLink, true);  
+                                $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
+                            }
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                        "assets" => $assetsDuplicated,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            }
         );
 
         return call_user_func($this->actions[$action], $data);
+    }
+
+    private function checkKeyAndUser($key, $user)
+    {
+        if (!$user) {
+            return [
+                "success" => false,
+                "message" => "User not found",
+            ];
+        }
+
+        if (!$key) {
+            return [
+                "success" => false,
+                "message" => "No key provided",
+            ];
+        }
+
+        return [
+            "success" => true
+        ];
     }
 
     private function linkAssetToUser(String $userId, String $link, Bool $isPublic)
