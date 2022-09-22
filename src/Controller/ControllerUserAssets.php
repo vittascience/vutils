@@ -28,7 +28,7 @@ class ControllerUserAssets
         $this->target = empty($_GET["target"]) ? null : htmlspecialchars($_GET["target"]);
         $this->entityManager = $entityManager;
         $this->user = $user;
-        $this->whiteList = ["adacraft", "ai-get"];
+        $this->whiteList = ["adacraft", "ai-get", "ai-get-imgs"];
     }
 
     public function action($action, $data = [])
@@ -431,13 +431,17 @@ class ControllerUserAssets
                         ];
                     }
                     
-                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    if (!$user) {
-                        return [
-                            "success" => false,
-                            "message" => "User not found",
-                        ];
-                    }
+                    /**
+                     * @From Naser
+                     * A non connected user should have the possiblity to get images
+                     */
+                    // $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    // if (!$user) {
+                    //     return [
+                    //         "success" => false,
+                    //         "message" => "User not found",
+                    //     ];
+                    // }
 
                     $imagesToGet = [];
                     // get all linked image with the user who start by the key
