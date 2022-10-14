@@ -59,9 +59,8 @@ class ControllerUpload
         $filenameWithoutSpaces = explode('.', str_replace(' ', '_', $imageName))[0];
         $filenameToUpload = time() . "_$filenameWithoutSpaces.$extension";
 
-        // no errors, we can process the data
-        // $uploadDir = __DIR__ . "/../../../../public/content/user_data/resources";
-        $uploadDir = __DIR__ . "/../../../../{$this->envVariables['VS_RESOURCE_UPLOAD_DIR']}";
+         // no errors, we can process the data
+         $uploadDir = __DIR__ . "/../../../../../{$this->envVariables['VS_RESOURCE_UPLOAD_DIR']}";
 
         $success = move_uploaded_file($imageTempName, "$uploadDir/$filenameToUpload");
 
