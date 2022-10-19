@@ -60,7 +60,10 @@ class ControllerUpload
         $filenameToUpload = time() . "_$filenameWithoutSpaces.$extension";
 
          // no errors, we can process the data
-         $uploadDir = __DIR__ . "/../../../../../{$this->envVariables['VS_RESOURCE_UPLOAD_DIR']}";
+         $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR'])
+            ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR']
+            : 'public/content/user_data/resources';
+        $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
 
         $success = move_uploaded_file($imageTempName, "$uploadDir/$filenameToUpload");
 
@@ -73,7 +76,7 @@ class ControllerUpload
         // no errors, return data
         return array(
             "filename" => $filenameToUpload,
-            "src" => "/{$this->envVariables['VS_RESOURCE_UPLOAD_DIR']}/$filenameToUpload"
+            "src" => "/$resourceUploadDir/$filenameToUpload"
         );
     }
 
@@ -118,7 +121,10 @@ class ControllerUpload
         $filenameToUpload = time() . "_$filenameWithoutSpaces.$extension";
 
         // set the target dir and move file
-        $uploadDir = __DIR__ . "/../../../../../{$this->envVariables['VS_RESOURCE_UPLOAD_DIR']}";
+        $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR'])
+                                ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR']
+                                : 'public/content/user_data/resources';
+        $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
         $success = move_uploaded_file($fileTempName, "$uploadDir/$filenameToUpload");
 
         // something went wrong while storing the file, return an error
@@ -130,7 +136,7 @@ class ControllerUpload
         // no errors, return data
         return array(
             "filename" => $filenameToUpload,
-            "src" => "/{$this->envVariables['VS_RESOURCE_UPLOAD_DIR']}/$filenameToUpload"
+            "src" => "/$resourceUploadDir/$filenameToUpload"
         );
     }
 }
