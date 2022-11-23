@@ -20,27 +20,39 @@ class ControllerProdIssuesNotifier
         $this->user = $user;
     }
 
-   public function notifySlack(){
+    public function notifySlack()
+    {
+        $decodedData = json_decode($_POST['errorReport']); 
+        $routingUrlQueryString = explode('?', $decodedData->context->routingUrl)[1];
+        $queryParts = explode('&', $routingUrlQueryString);
+        $controller = str_replace('controller=', '', $queryParts[0]);
+        $action = str_replace('action=', '', $queryParts[1]);
 
-    $emailReceiver = "notif-prod-controller-aaaaibwqgmrmcydttw65fn4glq@vittascience.slack.com";
-    $subject = "TEST PROD ISSUES NOTIF";
-    
-    $emailTtemplateBody ="fr_defaultMailerTemplate" ;
+        $emailReceiver = "notif-prod-controller-aaaaibwqgmrmcydttw65fn4glq@vittascience.slack.com";
+        $subject = "Erreur sur controller $controller / action $action";
 
-    $body = "
-        <br>
-        <p>from : NAS</p>
-        <p>UN MESSAGE PAR HASARD</p>
-        <br>
-    ";
+        $emailTtemplateBody = "fr_devMailerTemplate";
 
-    // send email
-    $emailSent = Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody, $replyToMail=null, $replyToName=null);
-    /////////////////////////////////////
+        $body = "
+            <p>
+                Un utilisateur a rencontré une erreur de type <code> $decodedData->errorMessage </code> sur une requête ajax concernant le controller <code>$controller</code> et l'action <code>$action</code>.
+            </p>
+        ";
 
-    return array(
-        "emailSent" => $emailSent
-    );
-     return array('msg'=> 'oki nas prod notified');
-   }
+        if ($decodedData->responseText === '') {
+            $body .= "<p>La réponse du serveur est une string vide. Piste éventuelle: doctrine a pu rencontrer une erreur. Voir les fichiers de logs dans le container docker_web_1";
+        }
+        
+        $test =json_encode($decodedData,JSON_PRETTY_PRINT);
+       
+        $body .= "
+        <hr>
+            <p>Détail de l'erreur de la requête:</p>
+            <pre style='background: black; color: white; overflow: scroll;'>
+                $test    
+            </pre>";
+        // send email
+        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody);
+        return;
+    }
 }
