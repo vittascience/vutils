@@ -35,7 +35,7 @@ class ControllerProdIssuesNotifier
         $emailTtemplateBody = "fr_devMailerTemplate";
         $body = "
             <p>
-                Un utilisateur a rencontré une erreur de type <code> $decodedData->errorMessage </code> sur une requête ajax concernant le controller <code>$controller</code> et l'action <code>$action</code>.
+                Un utilisateur a rencontré une erreur de type <code> {$decodedData->errorMessage} </code> sur une requête ajax concernant le controller <code>$controller</code> et l'action <code>$action</code>.
             </p>
         ";
 
