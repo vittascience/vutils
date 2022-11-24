@@ -22,17 +22,17 @@ class ControllerProdIssuesNotifier
 
     public function notifySlack()
     {
+        // bind and parse incoming data
         $decodedData = json_decode($_POST['errorReport']);
         $routingUrlQueryString = explode('?', $decodedData->context->routingUrl)[1];
         $queryParts = explode('&', $routingUrlQueryString);
         $controller = str_replace('controller=', '', $queryParts[0]);
         $action = str_replace('action=', '', $queryParts[1]);
 
+        // set variables for email to be send
         $emailReceiver = "notif-prod-controller-aaaaibwqgmrmcydttw65fn4glq@vittascience.slack.com";
         $subject = "Erreur sur controller $controller / action $action";
-
         $emailTtemplateBody = "fr_devMailerTemplate";
-
         $body = "
             <p>
                 Un utilisateur a rencontré une erreur de type <code> $decodedData->errorMessage </code> sur une requête ajax concernant le controller <code>$controller</code> et l'action <code>$action</code>.
@@ -43,11 +43,10 @@ class ControllerProdIssuesNotifier
             $body .= "<p>La réponse du serveur est une string vide. Piste éventuelle: doctrine a pu rencontrer une erreur. Voir les fichiers de logs dans le container docker_web_1";
         }
 
-        $originalString = json_encode($decodedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        $stringTest = str_replace('\\\\n', '\\n', $originalString);        // $stringWithoutDoubleBackslashes = str_replace('\\\\', 'vittapattern', $originalString);
-        // $stringWithoutSingleBackslashe = str_replace('\\', '', $stringWithoutDoubleBackslashes);
-        // $finalStringToDisplay = str_replace('vittapattern', '\\', $stringWithoutSingleBackslashe);
-
+        // filter string for better formatting
+        $originalString = json_encode($decodedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $stringTest = str_replace('\\\\n', '\\n', $originalString);        
+       
         $body .= "
             <hr>
             <p>Détail de l'erreur de la requête:</p>
