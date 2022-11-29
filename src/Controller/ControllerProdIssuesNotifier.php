@@ -56,4 +56,19 @@ class ControllerProdIssuesNotifier
         Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody);
         return;
     }
+
+    public function notifySlackAboutGar()
+    {
+        // // set variables for email to be send
+        $emailReceiver = "notif-prod-controller-aaaaibwqgmrmcydttw65fn4glq@vittascience.slack.com";
+        $subject = $_POST['issue_subject'];
+        $emailTtemplateBody = "fr_devMailerTemplate";
+      
+        $body = "
+            <p>{$_POST['issue_text']}</p>
+        ";
+        // send email
+        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody);
+        return;
+    }
 }
