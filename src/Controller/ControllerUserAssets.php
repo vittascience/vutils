@@ -420,6 +420,115 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "ai-upload-sounds" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $sounds = $request['sounds'];
+
+                    if (!$key) {
+                        $key = md5(uniqid(rand(), true));
+                    }
+
+                    $soundsToDelete = [];
+                    $soundsLinks = [];
+
+                    // get all linked sound with the user who start by the key
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+
+                    $toDelete = true;
+                    foreach ($existingSounds as $existingSound) {
+                        foreach ($sounds as $sound) {
+                            if ($existingSound->getLink() == $sound['id']) {
+                                $toDelete = false; 
+                            }
+                        }
+                        if (!$toDelete) {
+                            $soundsToDelete[] = $existingSound->getLink();
+                        }
+                    }
+
+                    // Delete all sounds that are not in the new list
+                    foreach ($soundsToDelete as $soundToDelete) {
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($soundToDelete)->delete();
+                        $this->deleteUserLinkAsset($this->user['id'], $soundToDelete);
+                    }
+
+                    foreach ($sounds as $sound) {
+
+                        $name = $key . '-' . $sound['id'];
+                        //check if the sound already exists
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
+                        if ($sound['content'] != 'false' && $objExist) {
+                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
+                        } else if ($sound['content'] == 'false') {
+                            continue;
+                        }
+
+                        $content = $sound['content'];
+                        $options = [
+                            'name'    => $name,
+                            'content' => file_get_contents($content),
+                        ];
+
+                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                        $this->linkAssetToUser($this->user['id'], $name, true);
+                        $soundsLinks[] = $name;
+                    }
+
+                    return [
+                        "success" => true,
+                        "sounds" => $soundsLinks,
+                        "key" => $key,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "ai-get-sounds" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "No key provided",
+                        ];
+                    }
+                    
+                    $soundsToGet = [];
+                    // get all linked image with the user who start by the key
+                    $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
+                    foreach ($existingSounds as $sound) {
+                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($sound->getLink());
+                        if ($objExist) {
+                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($sound->getLink());
+                            $dataType = $this->dataTypeFromExtension($sound->getLink());
+                            $base64 = 'data:application/json' . ';base64,' . base64_encode($objectUp->download()->getContents());
+                            $soundsToGet[] = [
+                                "id" => $sound->getLink(),
+                                "content" => $base64,
+                            ];   
+                        }
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $soundsToGet,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
             "ai-get-imgs" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $key = !empty($_POST['key']) ? $_POST['key'] : null;
