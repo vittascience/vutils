@@ -86,6 +86,7 @@ class ConnectionManager
              if( time() < $failedAttempts['can_not_login_before']){
 
                  // create and send the response back
+                 $this->errorResponse['error'] = "wrong_credentials" ; 
                  $this->errorResponse['failedLoginAttempts'] = $failedAttempts['count'];
                  $this->errorResponse['canNotLoginBefore'] = $failedAttempts['can_not_login_before'];
                  return $this->errorResponse;
