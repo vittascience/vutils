@@ -57,7 +57,9 @@ class ControllerUpload
 
         // no errors, we can process the data
         // replace whitespaces by _ and get the first chunk in case of duplicated ".someMisleadingExtensionBeforeTheRealFileExtension"
-        $filenameWithoutSpaces = explode('.', str_replace(' ', '_', $imageName))[0];
+        $filenameWithoutSpaces = explode('.', str_replace([` `, `'`, `"`], ["_", "_", "_"], $imageName))[0];
+
+
         $filenameToUpload = time() . "_$filenameWithoutSpaces.$extension";
 
          // no errors, we can process the data
