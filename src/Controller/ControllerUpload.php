@@ -3,6 +3,7 @@
 namespace Utils\Controller;
 
 use Dotenv\Dotenv;
+use User\Entity\User;
 use Utils\Entity\UserImg;
 
 class ControllerUpload
@@ -31,7 +32,13 @@ class ControllerUpload
         // bind and sanitize incoming data and 
         $incomingData = $_FILES['image'];
         $imageError = intval($incomingData['error']);
-        $imageName = !empty($incomingData['name']) ? htmlspecialchars(strip_tags(trim($incomingData['name']))) : "";
+        
+        $imageName = !empty($incomingData['name']) ? $incomingData['name'] : "";
+        
+        // replace whitespaces, " , ' by _ and get the first chunk in case of duplicated ".someMisleadingExtensionBeforeTheRealFileExtension"
+        $filenameWithoutSpaces = explode('.', str_replace(["'", " ", '"'], "_", $imageName))[0];
+        $filenameHtmlSpecial = htmlspecialchars(strip_tags(trim($filenameWithoutSpaces)));
+
         $imageTempName = !empty($incomingData['tmp_name']) ? htmlspecialchars(strip_tags(trim($incomingData['tmp_name']))) : "";
         $extension = !empty($incomingData['type'])
             ? htmlspecialchars(strip_tags(trim(
@@ -55,12 +62,13 @@ class ControllerUpload
         // some errors found, return them
         if (!empty($errors)) return array('errors' => $errors);
 
+        
         // no errors, we can process the data
-        // replace whitespaces by _ and get the first chunk in case of duplicated ".someMisleadingExtensionBeforeTheRealFileExtension"
-        $filenameWithoutSpaces = explode('.', str_replace([` `, `'`, `"`], ["_", "_", "_"], $imageName))[0];
 
 
-        $filenameToUpload = time() . "_$filenameWithoutSpaces.$extension";
+
+
+        $filenameToUpload = time() . "_$filenameHtmlSpecial.$extension";
 
          // no errors, we can process the data
          $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR'])
@@ -76,8 +84,9 @@ class ControllerUpload
             return array('errors' => $errors);
         }
         
+        $user = $this->entityManager->getRepository(User::class)->find($this->user["id"]);
         $userImg = new UserImg();
-        $userImg->setUser($this->user);
+        $userImg->setUser($user);
         $userImg->setImg($filenameToUpload);
         $userImg->setIsPublic(0); // default value is 0 (change it to 1 if you want to make it public)
         $this->entityManager->persist($userImg);

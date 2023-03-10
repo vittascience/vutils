@@ -9,7 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * @ORM\Entity(repositoryClass="Utils\Repository\UserImgRepository")
- * @ORM\Table(name="user_assets")
+ * @ORM\Table(name="user_images")
  */
 class UserImg
 {
