@@ -17,7 +17,7 @@ class UserImgRepository extends EntityRepository
             ->getResult();
     }
 
-    public function getPublicAssets()
+    public function getPublicImg()
     {
         return $this->getEntityManager()->createQueryBuilder()->select('ui')
             ->from("Utils\Entity\UserImg", 'ui')
