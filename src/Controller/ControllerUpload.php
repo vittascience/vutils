@@ -3,6 +3,7 @@
 namespace Utils\Controller;
 
 use Dotenv\Dotenv;
+use Utils\Entity\UserImg;
 
 class ControllerUpload
 {
@@ -72,6 +73,13 @@ class ControllerUpload
             array_push($errors, array('errorType' => "imageNotStored"));
             return array('errors' => $errors);
         }
+        
+        $userImg = new UserImg();
+        $userImg->setUser($this->user);
+        $userImg->setImg($filenameToUpload);
+        $userImg->setIsPublic(0); // default value is 0 (change it to 1 if you want to make it public)
+        $this->entityManager->persist($userImg);
+        $this->entityManager->flush();
 
         // no errors, return data
         return array(
