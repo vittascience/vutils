@@ -100,6 +100,56 @@ class ControllerUpload
     }
 
 
+    public function getAllMyImages() {
+        // accept only POST request
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return ["error" => "Method not Allowed"];
+        if (empty($_SESSION['id'])) return ["errorType" => "uploadFileFromTextEditorNotAuthenticated"];
+
+
+        $user = $this->entityManager->getRepository(User::class)->find($this->user["id"]);
+        $userImgs = $this->entityManager->getRepository(UserImg::class)->findBy(["user" => $user]);
+        $userFiles = [];
+        foreach ($userImgs as $userImg) {
+            array_push($userFiles, [
+                "id" => $userImg->getId(),
+                "filename" => $userImg->getImg(),
+                "src" => "/public/content/user_data/resources/" . $userImg->getImg(),
+                "isPublic" => $userImg->getIsPublic()
+            ]);
+        }
+
+        return $userFiles;
+    }
+
+    public function deleteImage() {
+        // accept only POST request
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return ["error" => "Method not Allowed"];
+        if (empty($_SESSION['id'])) return ["errorType" => "uploadFileFromTextEditorNotAuthenticated"];
+
+        $imageId = !empty($_POST['id']) ? intval($_POST['id']) : 0;
+        if (empty($imageId)) return ["errorType" => "invalidImageId"];
+
+        $user = $this->entityManager->getRepository(User::class)->find($this->user["id"]);
+        $userImgs = $this->entityManager->getRepository(UserImg::class)->findBy(["user" => $user, "id" => $imageId]);
+
+        if (empty($userImgs)) return ["errorType" => "imageNotFound"];
+
+        $userImg = $userImgs[0];
+        $filename = $userImg->getImg();
+        $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR']) 
+                            ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR'] 
+                            : 'public/content/user_data/resources';
+
+        $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
+
+        unlink("$uploadDir/$filename");
+        $this->entityManager->remove($userImg);
+        $this->entityManager->flush();
+
+        return ["success" => true, "id" => $imageId, "message" => "Image deleted successfully"];
+    }
+
+
     public function uploadFileFromTextEditor() {
 
         // accept only POST request
