@@ -8,7 +8,7 @@ use PHPMailer\PHPMailer\Exception;
 
 class Mailer
 {
-    public static function sendMail($recipient, $subject, $body, $altBody,$templateBody = 'fr_default', $replyToMail = null, $replyToName = null)
+    public static function sendMail($recipient, $subject, $body, $altBody,$templateBody = 'fr_default', $replyToMail = null, $replyToName = null,$additionalAddress=null)
     {
        
         $mail = new PHPMailer(true);
@@ -37,7 +37,9 @@ class Mailer
             $mail->Port = $_ENV['VS_MAIL_PORT'];
 
             $mail->setFrom($_ENV['VS_MAIL_ADDRESS'], $_ENV['VS_SET_FROM']);
-            $mail->addAddress($recipient);               // Name is optional
+            $mail->addAddress($recipient); 
+            if($additionalAddress != null)  $mail->addAddress($additionalAddress); 
+            // Name is optional
             $mail->addReplyTo($replyToMail, $replyToName);
             $templateBody = self::loadTemplateBody($templateBody,$body);
            

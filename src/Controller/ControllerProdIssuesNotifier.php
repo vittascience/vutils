@@ -53,8 +53,7 @@ class ControllerProdIssuesNotifier
             <pre style='background: black;color: white;overflow: scroll;padding: 0.5em 1em;border-radius: 0.75em;font-size: 1.1em;user-select:all;'>$stringTest</pre>";
 
         // send email
-        Mailer::sendMail("logs@vittascience.com",  $subject, $body, strip_tags($body), $emailTtemplateBody);
-        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody);
+        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody,null,null,"logs@vittascience.com");
         return;
     }
 
@@ -69,8 +68,7 @@ class ControllerProdIssuesNotifier
             <p>{$_POST['issue_text']}</p>
         ";
         // send email
-        Mailer::sendMail("logs@vittascience.com",  $subject, $body, strip_tags($body), $emailTtemplateBody);
-        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody);
+        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody,null,null,"logs@vittascience.com");
         return;
     }
 }
