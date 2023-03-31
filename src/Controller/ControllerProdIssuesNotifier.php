@@ -34,10 +34,10 @@ class ControllerProdIssuesNotifier
         $subject = "Erreur sur controller $controller / action $action";
         $emailTtemplateBody = "fr_devMailerTemplate";
         $body = "
-            <p>
-                Un utilisateur a rencontré une erreur de type <code> {$decodedData->errorMessage} </code> sur une requête ajax concernant le controller <code>$controller</code> et l'action <code>$action</code>.
-            </p>
-        ";
+             <p>
+                 Un utilisateur a rencontré une erreur de type <code> {$decodedData->errorMessage} </code> sur une requête ajax concernant le controller <code>$controller</code> et l'action <code>$action</code>.
+             </p>
+         ";
 
         if ($decodedData->responseText === '') {
             $body .= "<p>La réponse du serveur est une string vide. Piste éventuelle: doctrine a pu rencontrer une erreur. Voir les fichiers de logs dans le container docker_web_1";
@@ -45,15 +45,24 @@ class ControllerProdIssuesNotifier
 
         // filter string for better formatting
         $originalString = json_encode($decodedData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $stringTest = str_replace('\\\\n', '\\n', $originalString);        
-       
+        $stringTest = str_replace('\\\\n', '\\n', $originalString);
+        
+        $userId = intval($_SESSION['id']) ?? null;
+        $userStringified = "user not connected";
+        if ($userId) {
+            $user = $this->entityManager->getRepository(User::class)->find($userId);
+            $userStringified = json_encode($user->jsonSerialize(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            str_replace('\\\\n', '\\n', $userStringified);
+        }
         $body .= "
-            <hr>
-            <p>Détail de l'erreur de la requête:</p>
-            <pre style='background: black;color: white;overflow: scroll;padding: 0.5em 1em;border-radius: 0.75em;font-size: 1.1em;user-select:all;'>$stringTest</pre>";
+             <hr>
+             <p>Détail de l'erreur de la requête:</p>
+             user : 
+             <pre style='background: black;color: white;overflow: scroll;padding: 0.5em 1em;border-radius: 0.75em;font-size: 1.1em;user-select:all;'>$userStringified</pre>
+             <pre style='background: black;color: white;overflow: scroll;padding: 0.5em 1em;border-radius: 0.75em;font-size: 1.1em;user-select:all;'>$stringTest</pre>";
 
         // send email
-        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody,null,null,"logs@vittascience.com");
+        Mailer::sendMail($emailReceiver,  $subject, $body, strip_tags($body), $emailTtemplateBody, null, null, "logs@vittascience.com");
         return;
     }
 
