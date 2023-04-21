@@ -4,6 +4,7 @@ namespace Utils\Controller;
 
 use Utils\Mailer;
 use Dotenv\Dotenv;
+use User\Entity\User;
 
 class ControllerProdIssuesNotifier
 {
