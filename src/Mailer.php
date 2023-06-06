@@ -26,7 +26,7 @@ class Mailer
                 'ssl' => array(
                     'verify_peer' => false,
                     'verify_peer_name' => false,
-                    'allow_self_signed' => false
+                    'allow_self_signed' => true
                 )
             );
             $mail->Host = $_ENV['VS_MAIL_SERVER'];
