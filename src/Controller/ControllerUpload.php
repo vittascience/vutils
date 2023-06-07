@@ -32,8 +32,12 @@ class ControllerUpload
         // bind and sanitize incoming data and 
         $incomingData = $_FILES['image'];
         $imageError = intval($incomingData['error']);
-        
-        $imageName = !empty($incomingData['name']) ? $incomingData['name'] : "";
+
+        if (!empty($_POST['title'])) {
+            $imageName = $_POST['title'];
+        } else {
+            $imageName = !empty($incomingData['name']) ? $incomingData['name'] : "";
+        }
         
         // replace whitespaces, " , ' by _ and get the first chunk in case of duplicated ".someMisleadingExtensionBeforeTheRealFileExtension"
         $filenameWithoutSpaces = explode('.', str_replace(["'", " ", '"'], "_", $imageName))[0];
@@ -57,7 +61,7 @@ class ControllerUpload
             array_push($errors, array("errorType" => "invalidImageExtension"));
         }
         if (empty($imageSize)) array_push($errors, array("errorType" => "invalidImageSize"));
-        elseif ($imageSize > 1000000) array_push($errors, array("errorType" => "imageSizeToLarge"));
+        elseif ($imageSize > 3000000) array_push($errors, array("errorType" => "imageSizeToLarge"));
 
         // some errors found, return them
         if (!empty($errors)) return array('errors' => $errors);
