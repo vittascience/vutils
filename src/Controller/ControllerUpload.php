@@ -32,8 +32,12 @@ class ControllerUpload
         // bind and sanitize incoming data and 
         $incomingData = $_FILES['image'];
         $imageError = intval($incomingData['error']);
-        
-        $imageName = !empty($incomingData['name']) ? $incomingData['name'] : "";
+
+        if (!empty($_POST['title'])) {
+            $imageName = $_POST['title'];
+        } else {
+            $imageName = !empty($incomingData['name']) ? $incomingData['name'] : "";
+        }
         
         // replace whitespaces, " , ' by _ and get the first chunk in case of duplicated ".someMisleadingExtensionBeforeTheRealFileExtension"
         $filenameWithoutSpaces = explode('.', str_replace(["'", " ", '"'], "_", $imageName))[0];
