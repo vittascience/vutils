@@ -8,7 +8,20 @@ use PHPMailer\PHPMailer\Exception;
 
 class Mailer
 {
-    public static function sendMail($recipient, $subject, $body, $altBody,$templateBody = 'fr_default', $replyToMail = null, $replyToName = null,$additionalAddress=null)
+    /**
+     * Send an email
+     * @param string $recipient
+     * @param string $subject
+     * @param string $body
+     * @param string $altBody
+     * @param string $templateBody
+     * @param string $replyToMail
+     * @param string $replyToName
+     * @param string|array $additionalAddress
+     * @param string|array $additionalCC
+     * @return bool
+     */
+    public static function sendMail($recipient, $subject, $body, $altBody, $templateBody = 'fr_default', $replyToMail = null, $replyToName = null, $additionalAddress=null, $additionalCC=null)
     {
        
         $mail = new PHPMailer(true);
@@ -35,10 +48,37 @@ class Mailer
             $mail->Password = $_ENV['VS_MAIL_PASSWORD'];
             $mail->SMTPSecure = $_ENV['VS_MAIL_TYPE'];
             $mail->Port = $_ENV['VS_MAIL_PORT'];
-
+            
             $mail->setFrom($_ENV['VS_MAIL_ADDRESS'], $_ENV['VS_SET_FROM']);
             $mail->addAddress($recipient); 
-            if($additionalAddress != null)  $mail->addAddress($additionalAddress); 
+
+
+            /**
+             * Add additional(s) Copy
+             */
+            if ($additionalCC) {
+                if (is_array($additionalCC)) {
+                    foreach ($additionalCC as $cc) {
+                        $mail->AddCC($cc);
+                    }
+                } else {
+                    $mail->AddCC($additionalCC);
+                }
+            }
+            
+            /**
+             * Add additional(s) address
+             */
+            if($additionalAddress != null) {
+                if (is_array($additionalAddress)) {
+                    foreach ($additionalAddress as $address) {
+                        $mail->addAddress($address); 
+                    }
+                } else {
+                    $mail->addAddress($additionalAddress); 
+                }
+            }  
+                
             // Name is optional
             $mail->addReplyTo($replyToMail, $replyToName);
             $templateBody = self::loadTemplateBody($templateBody,$body);
