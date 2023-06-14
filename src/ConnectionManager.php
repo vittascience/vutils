@@ -115,8 +115,9 @@ class ConnectionManager
                 $this->errorResponse['error'] = "user_not_found";
                 return $this->errorResponse;
             }
-
-            if (password_verify($password, $user["password"])) {
+            $passwordWithoutHtmlEntities = html_entity_decode($password);
+            if (password_verify($passwordWithoutHtmlEntities, $user["password"])) {
+                
                 // password verified, create the token
                 $token = $this->createToken($user["id"]);
                 if ($token !== false){
