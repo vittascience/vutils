@@ -9,6 +9,9 @@ use DAO\UserDAO;
 use Dotenv\Dotenv;
 use DAO\UserLoginAttemptDAO;
 use Database\DataBaseManager;
+use Otp\Otp;
+use Otp\GoogleAuthenticator;
+use ParagonIE\ConstantTime\Encoding;
 
 class ConnectionManager
 {
@@ -64,8 +67,8 @@ class ConnectionManager
             );
         return $res;
     }
-
-    public function checkLogin($identifier, $password)
+    
+    public function checkLogin($identifier, $password, $totp_code=false)
     {
         // initialise error array with default value
         $this->errorResponse = ["success" => false];
@@ -117,6 +120,14 @@ class ConnectionManager
             }
 
             if (password_verify($password, $user["password"])) {
+                //check if the user has 2FA enabled
+                if($user["totp_secret"] != null){
+                    $otp = new Otp();
+                    if (!$otp->checkTotp(Encoding::base32DecodeUpper($user["totp_secret"]), $totp_code)) {
+                        $this->errorResponse['error'] = "wrong_totp_code" ;            
+                        return $this->errorResponse;
+                    }
+                }
                 // password verified, create the token
                 $token = $this->createToken($user["id"]);
                 if ($token !== false){
