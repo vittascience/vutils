@@ -28,4 +28,18 @@ class UserAssetsRepository extends EntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function getAllAssetsByPrefixKey(String $key, User $user) {
+
+        $qb = $this->getEntityManager()->createQueryBuilder();
+        $qb->select('ua')
+            ->from("Utils\Entity\UserAssets", 'ua')
+            ->where('ua.user = :user')
+            ->andWhere('ua.link LIKE :key')
+            ->setParameters(['user' => $user, 'key' => $key . '%'])
+            ->getQuery()
+            ->getResult();
+
+        return $qb->getQuery()->getResult();
+    }
 }

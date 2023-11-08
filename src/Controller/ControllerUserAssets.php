@@ -2,12 +2,14 @@
 
 namespace Utils\Controller;
 
+use Aws\S3\Exception\S3Exception;
 use User\Entity\User;
 use GuzzleHttp\Client;
 use OpenStack\OpenStack;
 use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use OpenStack\Identity\v3\Models\Token;
+use Aws\S3\S3Client;
 
 
 class ControllerUserAssets 
@@ -19,6 +21,8 @@ class ControllerUserAssets
     protected $actions;
     protected $entityManager;
     protected $user;
+    protected $whiteList;
+    protected $clientS3;
 
     public function __construct($entityManager, $user)
     {
@@ -29,6 +33,16 @@ class ControllerUserAssets
         $this->entityManager = $entityManager;
         $this->user = $user;
         $this->whiteList = ["adacraft", "ai-get", "ai-get-imgs"];
+        $this->clientS3 = new S3Client([
+            'credentials' => [
+                'key' => $_ENV['VS_S3_KEY'],
+                'secret' => $_ENV['VS_S3_SECRET']
+            ],
+            'region' => 'fr-par',
+            'version' => 'latest',
+            'endpoint' => 'https://s3.fr-par.scw.cloud',
+            'signature_version' => 'v4'
+        ]);
     }
 
     public function action($action, $data = [])
@@ -361,11 +375,11 @@ class ControllerUserAssets
                     }
 
                     $imagesToDelete = [];
-                    $imagesLinks = [];
 
                     // get all linked image with the user who start by the key
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
                     $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                    $imagesUrl = [];
 
                     $toDelete = true;
                     foreach ($existingImages as $existingImage) {
@@ -379,38 +393,65 @@ class ControllerUserAssets
                         }
                     }
 
+
                     // Delete all image that are not in the new list
+                    if (!empty($imagesToDelete)) {
+                        $this->deleteMultipleAssetsS3($imagesToDelete, 'vittai-assets');
+                    }
                     foreach ($imagesToDelete as $imageToDelete) {
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($imageToDelete)->delete();
                         $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
                     }
 
+                    
                     foreach ($images as $image) {
-
-                        $name = $key . '-' . $image['id'] . '.jpg';
-                        //check if the image already exists
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
-                        if ($image['content'] != 'false' && $objExist) {
-                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                        } else if ($image['content'] == 'false') {
-                            continue;
-                        }
-
-                        $content = $image['content'];
-                        $options = [
-                            'name'    => $name,
-                            'content' => file_get_contents($content),
-                        ];
-
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                        $name = $key . '-' . $image['id'] . '.png';
+                        $imagesUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'image/png');
                         $this->linkAssetToUser($this->user['id'], $name, true);
-                        $imagesLinks[] = $name;
                     }
 
                     return [
                         "success" => true,
-                        "images" => $imagesLinks,
+                        "urls" => $imagesUrl,
                         "key" => $key,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "ai-get-imgs" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "No key provided",
+                        ];
+                    }
+
+                    $imagesToGet = [];
+                    // get all linked image with the user who start by the key
+                    $existingImagesFromS3 = $this->listObjectsFromBucket('vittai-assets', $key);
+                    foreach ($existingImagesFromS3['Contents'] as $image) {
+                        $cmd = $this->clientS3->getCommand('GetObject', [
+                            'Bucket' => 'vittai-assets',
+                            'Key' => $image['Key']
+                        ]);
+                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                        $imagesToGet[] = [
+                            "key" => $image['Key'],
+                            "url" => (string) $request->getUri(),
+                        ];
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $imagesToGet,
                     ];
 
                 } else {
@@ -529,57 +570,6 @@ class ControllerUserAssets
                     ];
                 }
             },
-            "ai-get-imgs" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
-
-                    if (!$key) {
-                        return [
-                            "success" => false,
-                            "message" => "No key provided",
-                        ];
-                    }
-                    
-                    /**
-                     * @From Naser
-                     * A non connected user should have the possiblity to get images
-                     */
-                    // $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    // if (!$user) {
-                    //     return [
-                    //         "success" => false,
-                    //         "message" => "User not found",
-                    //     ];
-                    // }
-
-                    $imagesToGet = [];
-                    // get all linked image with the user who start by the key
-                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
-                    foreach ($existingImages as $image) {
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($image->getLink());
-                        if ($objExist) {
-                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($image->getLink());
-                            $dataType = $this->dataTypeFromExtension($image->getLink());
-                            $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
-                            $imagesToGet[] = [
-                                "id" => $image->getLink(),
-                                "content" => $base64,
-                            ];   
-                        }
-                    }
-
-                    return [
-                        "success" => true,
-                        "images" => $imagesToGet,
-                    ];
-
-                } else {
-                    return [
-                        "success" => false,
-                        "error" => "Method not allowed",
-                    ];
-                }
-            },
             "delete-assets" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
@@ -664,6 +654,73 @@ class ControllerUserAssets
                         "error" => "Method not allowed",
                     ];
                 }
+            },
+            "test_method" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+                    $imagesUrl = [];
+                    try {
+                        $cmd = $this->clientS3->getCommand('GetObject', [
+                            'Bucket' => 'vittai-assets',
+                            'Key' => 'imtb7c.png'
+                        ]);
+                        
+                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                        return [
+                            "success" => true,
+                            "url" => (string) $request->getUri(),
+                        ];
+
+                    } catch (S3Exception $th) {
+                        return [
+                            "success" => false,
+                            "error" => $th,
+                        ];
+                    }
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "test_method_post" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+                    $imagesUrl = [];
+
+                    try {
+                        $cmd = $this->clientS3->getCommand('PutObject', [
+                            'Bucket' => 'vittai-assets',
+                            'Key' => "$key.png",
+                            'contentType' => 'image/png',
+                        ]);
+
+                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                        return [
+                            "success" => true,
+                            "url" => (string) $request->getUri(),
+                        ];
+                    } catch (S3Exception $e) {
+                        return [
+                            "success" => false,
+                            "error" => $e->getMessage(),
+                        ];
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $imagesUrl,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
             }
         );
 
@@ -709,6 +766,15 @@ class ControllerUserAssets
         $this->entityManager->flush();
     }
 
+    private function deleteUserLinkAssetsS3(String $key, User $user)
+    {
+        $UserLinkAssets = $this->entityManager->getRepository(UserAssets::class)->getAllAssetsByPrefixKey($key, $user);
+        foreach ($UserLinkAssets as $UserLinkAsset) {
+            $this->entityManager->remove($UserLinkAsset);
+        }
+        $this->entityManager->flush();
+    }
+
     private function isUserLinkedToAsset(String $userId, String $link): bool
     {
         $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $userId]);
@@ -726,6 +792,54 @@ class ControllerUserAssets
             return $test->getIsPublic();
         }
         return false;
+    }
+
+    private function deleteMultipleAssetsS3($objects, $bucket) {
+        try {
+            $this->clientS3->deleteObjects([
+                'Bucket' => $bucket,
+                'Delete' => [
+                    'Objects' => $objects,
+                ],
+            ]);
+        } catch (S3Exception $e) {
+            return [
+                "success" => false,
+                "error" => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function getUrlUpload($object, $bucket, $contentType) {
+        try {
+            $cmd = $this->clientS3->getCommand('PutObject', [
+                'Bucket' => $bucket,
+                'Key' => "$object",
+                'contentType' => $contentType,
+            ]);
+            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+            return ['key' => $object, 'url' => (string) $request->getUri()];
+        } catch (S3Exception $e) {
+            return [
+                "success" => false,
+                "error" => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function listObjectsFromBucket($bucket, $prefix = null) {
+        try {
+            $results = $this->clientS3->listObjectsV2([
+                'Bucket' => $bucket,
+                'Prefix' => $prefix,
+            ]);
+            return $results;
+        } catch (S3Exception $e) {
+            return [
+                "success" => false,
+                "error" => $e->getMessage(),
+            ];
+        }
     }
 
     private function dataTypeFromExtension(String $fileName):? String {
