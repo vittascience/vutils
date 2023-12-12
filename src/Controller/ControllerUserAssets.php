@@ -436,19 +436,21 @@ class ControllerUserAssets
                     $imagesToGet = [];
                     // get all linked image with the user who start by the key
                     $existingImagesFromS3 = $this->listObjectsFromBucket('vittai-assets', $key);
-                    foreach ($existingImagesFromS3['Contents'] as $image) {
-                        $cmd = $this->clientS3->getCommand('GetObject', [
-                            'Bucket' => 'vittai-assets',
-                            'Key' => $image['Key']
-                        ]);
-                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
 
-                        $imagesToGet[] = [
-                            "key" => $image['Key'],
-                            "url" => (string) $request->getUri(),
-                        ];
+                    if ($existingImagesFromS3 && !empty($existingImagesFromS3['Contents'])) {
+                        foreach ($existingImagesFromS3['Contents'] as $image) {
+                            $cmd = $this->clientS3->getCommand('GetObject', [
+                                'Bucket' => 'vittai-assets',
+                                'Key' => $image['Key']
+                            ]);
+                            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                            $imagesToGet[] = [
+                                "key" => $image['Key'],
+                                "url" => (string) $request->getUri(),
+                            ];
+                        }
                     }
-
                     return [
                         "success" => true,
                         "images" => $imagesToGet,
