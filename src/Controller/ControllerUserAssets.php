@@ -404,9 +404,13 @@ class ControllerUserAssets
 
                     
                     foreach ($images as $image) {
-                        $name = $key . '-' . $image['id'] . '.png';
-                        $imagesUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'image/png');
-                        $this->linkAssetToUser($this->user['id'], $name, true);
+                        if ($image['update'] == 'false') {
+                            $name = $key . '-' . $image['id'] . '.png';
+                            $imagesUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'image/png');
+                            $this->linkAssetToUser($this->user['id'], $name, true);
+                        } else if ($image['update'] == 'true') {
+                            $imagesUrl[] = false;
+                        }
                     }
 
                     return [
