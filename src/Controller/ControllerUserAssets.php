@@ -371,7 +371,7 @@ class ControllerUserAssets
                     }
 
                     $imagesToDelete = [];
-
+                    $linkToDelete = [];
                     // get all linked image with the user who start by the key
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
                     $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
@@ -380,12 +380,13 @@ class ControllerUserAssets
                     $toDelete = true;
                     foreach ($existingImages as $existingImage) {
                         foreach ($images as $image) {
-                            if ($existingImage->getLink() == $image['id']) {
+                            if (str_contains($existingImage->getLink(), $image['id'])) {
                                 $toDelete = false;
                             }
                         }
-                        if (!$toDelete) {
+                        if ($toDelete) {
                             $imagesToDelete[] = ['Key' => $existingImage->getLink()];
+                            $linkToDelete[] = $existingImage->getLink();
                         }
                     }
 
@@ -393,7 +394,8 @@ class ControllerUserAssets
                     if (!empty($imagesToDelete)) {
                         $this->deleteMultipleAssetsS3($imagesToDelete, 'vittai-assets');
                     }
-                    foreach ($imagesToDelete as $imageToDelete) {
+
+                    foreach ($linkToDelete as $imageToDelete) {
                         $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
                     }
 
@@ -598,8 +600,8 @@ class ControllerUserAssets
                         }
                     }
 
-                    if (!empty($objectsToDelete)) {
-                        $this->deleteMultipleAssetsS3($objectsToDelete, 'vittai-assets');
+                    if (!empty($assetsS3Deleted)) {
+                        $this->deleteMultipleAssetsS3($assetsS3Deleted, 'vittai-assets');
                     }
 
                     return [
