@@ -388,7 +388,7 @@ class ControllerUserAssets
                             }
                             if ($toDelete) {
                                 $imagesToDelete[] = ['Key' => $existingImage->getLink()];
-                                $linkToDelete[] = $existingImage->getLink();
+                                $linkToDelete[] = $existingImage;
                             }
                         }
     
@@ -397,11 +397,12 @@ class ControllerUserAssets
                             $this->deleteMultipleAssetsS3($imagesToDelete, 'vittai-assets');
                         }
     
-
-                        $this->entityManager->getRepository(UserAssets::class)->deleteMultipleLinks($linkToDelete);
-                        /* foreach ($linkToDelete as $imageToDelete) {
-                            $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
-                        } */
+                        if (!empty($linkToDelete)) {
+                            foreach ($linkToDelete as $link) {
+                                $this->entityManager->remove($link);
+                            }
+                            $this->entityManager->flush();
+                        }
     
                         foreach ($images as $image) {
                             if ($image['update'] == 'false') {
@@ -594,6 +595,7 @@ class ControllerUserAssets
 
                     $assetsDeleted = [];
                     $assetsS3Deleted = [];
+                    $linkToDelete = [];
                     // get all linked image with the user who start by the key
                     foreach ($keys as $key) {
                         $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
@@ -603,12 +605,18 @@ class ControllerUserAssets
                                 //check if getLink is not an image (png, jpg, jpeg, gif, svg)
                                 $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink())->delete();
                                 $assetsDeleted[] = $asset->getLink();
-                                $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());
+                                $linkToDelete[] = $asset;
                             } else {
                                 $assetsS3Deleted[] = ['Key' => $asset->getLink()];
-                                $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());
+                                $linkToDelete[] = $asset;
                             }
                         }
+                    }
+                    if (!empty($linkToDelete)) {
+                        foreach ($linkToDelete as $link) {
+                            $this->entityManager->remove($link);
+                        }
+                        $this->entityManager->flush();
                     }
 
                     if (!empty($assetsS3Deleted)) {

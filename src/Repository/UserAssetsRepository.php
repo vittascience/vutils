@@ -42,18 +42,4 @@ class UserAssetsRepository extends EntityRepository
 
         return $qb->getQuery()->getResult();
     }
-
-    public function deleteMultipleLinks(array $links, User $user)
-    {
-        $qb = $this->getEntityManager()->createQueryBuilder();
-        $qb->delete("Utils\Entity\UserAssets", 'ua')
-            ->where('ua.link IN (:links)')
-            ->andWhere('ua.user = :user')
-            ->setParameter('links', $links)
-            ->setParameter('user', $user)
-            ->getQuery()
-            ->getResult();
-
-        return $qb->getQuery()->getResult();
-    }
 }
