@@ -2,14 +2,15 @@
 
 namespace Utils\Controller;
 
-use Aws\S3\Exception\S3Exception;
+use Exception;
+use Aws\S3\S3Client;
 use User\Entity\User;
 use GuzzleHttp\Client;
 use OpenStack\OpenStack;
 use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
+use Aws\S3\Exception\S3Exception;
 use OpenStack\Identity\v3\Models\Token;
-use Aws\S3\S3Client;
 
 
 class ControllerUserAssets
@@ -370,51 +371,61 @@ class ControllerUserAssets
                         $key = md5(uniqid(rand(), true));
                     }
 
-                    $imagesToDelete = [];
-                    $linkToDelete = [];
-                    // get all linked image with the user who start by the key
-                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
-                    $imagesUrl = [];
-
-                    $toDelete = true;
-                    foreach ($existingImages as $existingImage) {
-                        foreach ($images as $image) {
-                            if (str_contains($existingImage->getLink(), $image['id'])) {
-                                $toDelete = false;
+                    try {
+                        $imagesToDelete = [];
+                        $linkToDelete = [];
+                        // get all linked image with the user who start by the key
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                        $imagesUrl = [];
+    
+                        $toDelete = true;
+                        foreach ($existingImages as $existingImage) {
+                            foreach ($images as $image) {
+                                if (str_contains($existingImage->getLink(), $image['id'])) {
+                                    $toDelete = false;
+                                }
+                            }
+                            if ($toDelete) {
+                                $imagesToDelete[] = ['Key' => $existingImage->getLink()];
+                                $linkToDelete[] = $existingImage->getLink();
                             }
                         }
-                        if ($toDelete) {
-                            $imagesToDelete[] = ['Key' => $existingImage->getLink()];
-                            $linkToDelete[] = $existingImage->getLink();
+    
+                        // Delete all image that are not in the new list
+                        if (!empty($imagesToDelete)) {
+                            $this->deleteMultipleAssetsS3($imagesToDelete, 'vittai-assets');
                         }
-                    }
+    
 
-                    // Delete all image that are not in the new list
-                    if (!empty($imagesToDelete)) {
-                        $this->deleteMultipleAssetsS3($imagesToDelete, 'vittai-assets');
-                    }
-
-                    foreach ($linkToDelete as $imageToDelete) {
-                        $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
-                    }
-
-
-                    foreach ($images as $image) {
-                        if ($image['update'] == 'false') {
-                            $name = $key . '-' . $image['id'] . '.png';
-                            $imagesUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'image/png');
-                            $this->linkAssetToUser($this->user['id'], $name, true);
-                        } else if ($image['update'] == 'true') {
-                            $imagesUrl[] = false;
+                        $this->entityManager->getRepository(UserAssets::class)->deleteMultipleLinks($linkToDelete);
+                        /* foreach ($linkToDelete as $imageToDelete) {
+                            $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
+                        } */
+    
+                        foreach ($images as $image) {
+                            if ($image['update'] == 'false') {
+                                $name = $key . '-' . $image['id'] . '.png';
+                                $imagesUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'image/png');
+                                $this->linkAssetToUser($this->user['id'], $name, true);
+                            } else if ($image['update'] == 'true') {
+                                $imagesUrl[] = false;
+                            }
                         }
+    
+                        return [
+                            "success" => true,
+                            "urls" => $imagesUrl,
+                            "key" => $key,
+                        ];
+                    } catch (Exception $e) {
+                        return [
+                            "success" => false,
+                            "error" => $e->getMessage(),
+                        ];
                     }
 
-                    return [
-                        "success" => true,
-                        "urls" => $imagesUrl,
-                        "key" => $key,
-                    ];
+
                 } else {
                     return [
                         "success" => false,
