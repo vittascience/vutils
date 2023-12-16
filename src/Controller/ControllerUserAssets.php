@@ -229,34 +229,34 @@ class ControllerUserAssets
             },
             "ai-put" => function () {
                 $key = empty($_GET["key"]) ? null : $_GET["key"];
-                $files_array = $_FILES;
                 $isPublic = true;
-                $files_name = [];
                 $randomKey = md5(uniqid(rand(), true));
-                foreach ($files_array as $file) {
-                    $name = !empty($key) ? $key . '-' . $file['name'] : $randomKey . '-' . $file['name'];
-                    $files_name[] = $name;
-                    $content = $file['tmp_name'];
-                    $options = [
-                        'name'    => $name,
-                        'content' => file_get_contents($content),
-                    ];
+                $urlToReturn = [];
+                $key = !empty($key) ? $key : $randomKey;
 
-                    //if (!empty($key)) {
-                    //    $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                    //}
+                $fileNames = [
+                    "bin" => "$key-model.weights.bin",
+                    "json" => "$key-model.json",
+                ];
 
-                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                    $this->linkAssetToUser($this->user['id'], $name, $isPublic);
+                foreach ($fileNames as $k => $file) {
+                    if ($k == "json") {
+                        $extension = 'text/json';
+                    } else {
+                        $extension = 'application/octet-stream';
+                    }
+                    $urlToReturn[] = $this->getUrlUpload($file, 'vittai-assets', $extension);
+                    $this->linkAssetToUser($this->user['id'], $file, $isPublic);
                 }
+
                 return [
-                    "name" => $files_name,
-                    "success" => true
+                    "success" => true,
+                    "urls" => $urlToReturn,
+                    "key" => $key,
                 ];
             },
             "ai-put-meta" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT") {
-                    $content = file_get_contents('php://input');
                     $key = $_GET["key"];
                     $name = $key . '-' . $_GET["name"];
                     $isPublic = $_GET["isPublic"] == "true" ? true : false;
@@ -268,16 +268,13 @@ class ControllerUserAssets
                         ];
                     }
 
-                    $options = [
-                        'name' => $name,
-                        'content' => file_get_contents($content),
-                    ];
-
-                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                    $metaUrl = $this->getUrlUpload($name, 'vittai-assets', 'application/json');
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
+
                     return [
-                        "name" => $name,
-                        "success" => true
+                        "success" => true,
+                        "metaUrl" => $metaUrl,
+                        "key" => $key,
                     ];
                 } else {
                     return [
@@ -288,14 +285,12 @@ class ControllerUserAssets
             "ai-get" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "GET") {
                     $key = $_GET["key"];
-                    $Files = [];
-
                     $filesNames = [
                         "meta" => "$key-metadata.json",
                         "json" => "$key-model.json",
                         "bin" => "$key-model.weights.bin",
                     ];
-
+                    $urlsToGet = [];
                     foreach ($filesNames as $fileName) {
 
                         $isPublic = $this->isTheAssetPublic($fileName);
@@ -303,27 +298,25 @@ class ControllerUserAssets
                         if (!empty($this->user)) {
                             $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
                         }
-
+                        
                         if ($isPublic || $assetOwner) {
-                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($fileName);
-                            if ($objExist) {
-                                $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($fileName);
-                                $dataType = $this->dataTypeFromExtension($fileName);
-                                if (!$dataType) {
-                                    return [
-                                        "success" => false,
-                                        "message" => "File type not supported.",
-                                    ];
-                                }
-                                $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
-                                $Files[$fileName] = $base64;
-                            }
+                            $cmd = $this->clientS3->getCommand('GetObject', [
+                                'Bucket' => 'vittai-assets',
+                                'Key' => $fileName
+                            ]);
+                            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                            
+                            $urlsToGet[] = [
+                                "key" => $fileName,
+                                "url" => (string) $request->getUri(),
+                            ];
                         }
                     }
 
                     return [
                         "success" => true,
-                        "files" => $Files,
+                        "urls" => $urlsToGet
                     ];
                 } else {
                     return [
