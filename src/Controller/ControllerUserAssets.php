@@ -268,7 +268,7 @@ class ControllerUserAssets
                         ];
                     }
 
-                    $metaUrl = $this->getUrlUpload($name, 'vittai-assets', 'application/json');
+                    $metaUrl = $this->getUrlUpload($name, 'vittai-assets', 'text/json');
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
 
                     return [
