@@ -477,58 +477,62 @@ class ControllerUserAssets
                         $key = md5(uniqid(rand(), true));
                     }
 
-                    $soundsToDelete = [];
-                    $soundsLinks = [];
-
-                    // get all linked sound with the user who start by the key
-                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
-
-                    $toDelete = true;
-                    foreach ($existingSounds as $existingSound) {
-                        foreach ($sounds as $sound) {
-                            if ($existingSound->getLink() == $sound['id']) {
-                                $toDelete = false;
+                    try {
+                        $soundsToDelete = [];
+                        $linkToDelete = [];
+                        $soundUrl = [];
+                        // get all linked image with the user who start by the key
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+    
+                        $toDelete = true;
+                        foreach ($existingSounds as $existingSound) {
+                            foreach ($sounds as $sound) {
+                                if (str_contains($existingSound->getLink(), $sound['id'])) {
+                                    $toDelete = false;
+                                }
+                            }
+                            if ($toDelete) {
+                                $soundsToDelete[] = ['Key' => $existingSound->getLink()];
+                                $linkToDelete[] = $existingSound;
                             }
                         }
-                        if (!$toDelete) {
-                            $soundsToDelete[] = $existingSound->getLink();
+    
+                        // Delete all image that are not in the new list
+                        if (!empty($soundsToDelete)) {
+                            $this->deleteMultipleAssetsS3($soundsToDelete, 'vittai-assets');
                         }
-                    }
-
-                    // Delete all sounds that are not in the new list
-                    foreach ($soundsToDelete as $soundToDelete) {
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($soundToDelete)->delete();
-                        $this->deleteUserLinkAsset($this->user['id'], $soundToDelete);
-                    }
-
-                    foreach ($sounds as $sound) {
-
-                        $name = $key . '-' . $sound['id'];
-                        //check if the sound already exists
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
-                        if ($sound['content'] != 'false' && $objExist) {
-                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                        } else if ($sound['content'] == 'false') {
-                            continue;
+    
+                        if (!empty($linkToDelete)) {
+                            foreach ($linkToDelete as $link) {
+                                $this->entityManager->remove($link);
+                            }
+                            $this->entityManager->flush();
                         }
-
-                        $content = $sound['content'];
-                        $options = [
-                            'name'    => $name,
-                            'content' => file_get_contents($content),
+    
+                        foreach ($sounds as $sound) {
+                            if ($sound['update'] == 'false') {
+                                $name = $key . '-' . $sound['id'] . '.json';
+                                $soundUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'application/json');
+                                $this->linkAssetToUser($this->user['id'], $name, true);
+                            } else if ($sound['update'] == 'true') {
+                                $soundUrl[] = false;
+                            }
+                        }
+    
+                        return [
+                            "success" => true,
+                            "urls" => $soundUrl,
+                            "key" => $key,
                         ];
-
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                        $this->linkAssetToUser($this->user['id'], $name, true);
-                        $soundsLinks[] = $name;
+                    } catch (Exception $e) {
+                        return [
+                            "success" => false,
+                            "error" => $e->getMessage(),
+                        ];
                     }
 
-                    return [
-                        "success" => true,
-                        "sounds" => $soundsLinks,
-                        "key" => $key,
-                    ];
+
                 } else {
                     return [
                         "success" => false,
@@ -549,23 +553,25 @@ class ControllerUserAssets
 
                     $soundsToGet = [];
                     // get all linked image with the user who start by the key
-                    $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
-                    foreach ($existingSounds as $sound) {
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($sound->getLink());
-                        if ($objExist) {
-                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($sound->getLink());
-                            $dataType = $this->dataTypeFromExtension($sound->getLink());
-                            $base64 = 'data:application/json' . ';base64,' . base64_encode($objectUp->download()->getContents());
+                    $existingSounds = $this->listObjectsFromBucket('vittai-assets', $key);
+
+                    if ($existingSounds && !empty($existingSounds['Contents'])) {
+                        foreach ($existingSounds['Contents'] as $sound) {
+                            $cmd = $this->clientS3->getCommand('GetObject', [
+                                'Bucket' => 'vittai-assets',
+                                'Key' => $sound['Key']
+                            ]);
+                            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
                             $soundsToGet[] = [
-                                "id" => $sound->getLink(),
-                                "content" => $base64,
+                                "key" => $sound['Key'],
+                                "url" => (string) $request->getUri(),
                             ];
                         }
                     }
-
                     return [
                         "success" => true,
-                        "images" => $soundsToGet,
+                        "sounds" => $soundsToGet,
                     ];
                 } else {
                     return [
@@ -593,16 +599,8 @@ class ControllerUserAssets
                     foreach ($keys as $key) {
                         $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
                         foreach ($existingAssets as $asset) {
-                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
-                            if ($objExist) {
-                                //check if getLink is not an image (png, jpg, jpeg, gif, svg)
-                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink())->delete();
-                                $assetsDeleted[] = $asset->getLink();
-                                $linkToDelete[] = $asset;
-                            } else {
-                                $assetsS3Deleted[] = ['Key' => $asset->getLink()];
-                                $linkToDelete[] = $asset;
-                            }
+                            $assetsS3Deleted[] = ['Key' => $asset->getLink()];
+                            $linkToDelete[] = $asset;
                         }
                     }
                     if (!empty($linkToDelete)) {
