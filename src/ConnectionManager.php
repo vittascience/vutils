@@ -96,8 +96,7 @@ class ConnectionManager
              }
 
              // the waiting time is over, remove login attempts form users_login_attempts table
-             UserLoginAttemptDAO::getSharedInstance()
-                 ->resetLoginAttemptsByEmail($regular['email']);
+             UserLoginAttemptDAO::getSharedInstance()->resetLoginAttemptsByEmail($regular['email']);
          }
 
          // the regular user account is not activated yet
@@ -135,10 +134,8 @@ class ConnectionManager
                 // password verified, create the token
                 $token = $this->createToken($user["id"]);
                 if ($token !== false){
-
                     // remove failed login attemps if any to clean to users_login_attempts table and send data back
-                    UserLoginAttemptDAO::getSharedInstance()
-                        ->resetLoginAttemptsByEmail($regular['email']);
+                    UserLoginAttemptDAO::getSharedInstance()->resetLoginAttemptsByEmail($regular['email']);
                     return [$user["id"], $token];
                 }
             }
@@ -158,14 +155,20 @@ class ConnectionManager
     private function createToken($id)
     {
         try {
+            $successDeletion = DatabaseManager::getSharedInstance()->exec("DELETE FROM connection_tokens WHERE user_ref = ?", [$id]);
+            if (!$successDeletion) {
+                return false;
+            }
+            
             $token = bin2hex(random_bytes(32));
+            $res = DatabaseManager::getSharedInstance()->exec("INSERT INTO connection_tokens (token,user_ref) VALUES (?, ?)", [$token, $id]);
+            if ($res) {
+                return $token;
+            }
         } catch (\Exception $e) {
             return false;
         }
-        $res = DatabaseManager::getSharedInstance()
-            ->exec("INSERT INTO connection_tokens (token,user_ref) VALUES (?, ?)", [$token, $id]);
-        if ($res)
-            return $token;
+
         return false;
     }
 
@@ -181,12 +184,8 @@ class ConnectionManager
 
     public function checkConnected()
     {
-        if (isset($_SESSION["id"]) /* && isset($_SESSION["token"]) */) {
-            /* if ($this
-                ->checkToken($_SESSION["id"], $_SESSION["token"])
-            ) */ {
-                return UserDAO::getSharedInstance()->getUser($_SESSION["id"]);
-            }
+        if (isset($_SESSION["id"])) {
+            return UserDAO::getSharedInstance()->getUser($_SESSION["id"]);
         }
         return false;
     }
