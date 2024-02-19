@@ -2,15 +2,18 @@
 
 namespace Utils\Controller;
 
+use Exception;
+use Aws\S3\S3Client;
 use User\Entity\User;
 use GuzzleHttp\Client;
 use OpenStack\OpenStack;
 use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
+use Aws\S3\Exception\S3Exception;
 use OpenStack\Identity\v3\Models\Token;
 
 
-class ControllerUserAssets 
+class ControllerUserAssets
 {
     protected $client;
     protected $token;
@@ -19,6 +22,8 @@ class ControllerUserAssets
     protected $actions;
     protected $entityManager;
     protected $user;
+    protected $whiteList;
+    protected $clientS3;
 
     public function __construct($entityManager, $user)
     {
@@ -29,6 +34,16 @@ class ControllerUserAssets
         $this->entityManager = $entityManager;
         $this->user = $user;
         $this->whiteList = ["adacraft", "ai-get", "ai-get-imgs"];
+        $this->clientS3 = new S3Client([
+            'credentials' => [
+                'key' => $_ENV['VS_S3_KEY'],
+                'secret' => $_ENV['VS_S3_SECRET']
+            ],
+            'region' => 'fr-par',
+            'version' => 'latest',
+            'endpoint' => 'https://s3.fr-par.scw.cloud',
+            'signature_version' => 'v4'
+        ]);
     }
 
     public function action($action, $data = [])
@@ -44,7 +59,7 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "PUT" || $_SERVER['REQUEST_METHOD'] == "POST") {
                     $data = file_get_contents('php://input');
                     $name = $_GET["name"];
-                
+
                     if (md5($data) == pathinfo($name)["filename"]) {
                         $options = [
                             'name'    => $name,
@@ -58,17 +73,17 @@ class ControllerUserAssets
                         echo "Le fichier n'est pas valide.";
                     }
                 } else if ($_SERVER['REQUEST_METHOD'] == "GET") {
-                
+
                     $name = $_GET["name"];
-                
+
                     /** @var \OpenStack\ObjectStore\v1\Models\StorageObject $object */
                     $object = $this->openstack->objectStoreV1()
                         ->getContainer('scratch-assets')
                         ->getObject($name)
                         ->download();
-                
+
                     echo $object->getContents();
-                  }
+                }
             },
             "get" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "GET") {
@@ -122,7 +137,7 @@ class ControllerUserAssets
                         'name'    => $name,
                         'content' => file_get_contents($content),
                     ];
-                    
+
                     $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
                     return [
@@ -165,7 +180,6 @@ class ControllerUserAssets
                         "error" => "Method not allowed",
                     ];
                 }
-
             },
             "update" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT") {
@@ -179,7 +193,7 @@ class ControllerUserAssets
                                 'name'    => $name,
                                 'content' => file_get_contents($data),
                             ];
-    
+
                             $dataType = $this->dataTypeFromExtension($_GET["name"]);
                             if (!$dataType) {
                                 return [
@@ -190,7 +204,7 @@ class ControllerUserAssets
 
                             //$this->openstack->objectStoreV1()->getContainer($this->target)->getObject($name)->delete();
                             $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
-    
+
                             return [
                                 "name" => $name,
                                 "success" => true
@@ -215,35 +229,34 @@ class ControllerUserAssets
             },
             "ai-put" => function () {
                 $key = empty($_GET["key"]) ? null : $_GET["key"];
-                $files_array = $_FILES;
                 $isPublic = true;
-                $files_name = [];
                 $randomKey = md5(uniqid(rand(), true));
-                foreach ($files_array as $file) {
-                    $name = !empty($key) ? $key . '-' . $file['name'] : $randomKey . '-' . $file['name'];
-                    $files_name[] = $name;
-                    $content = $file['tmp_name'];
-                    $options = [
-                        'name'    => $name,
-                        'content' => file_get_contents($content),
-                    ];
+                $urlToReturn = [];
+                $key = !empty($key) ? $key : $randomKey;
 
-                    //if (!empty($key)) {
-                    //    $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                    //}
+                $fileNames = [
+                    "bin" => "$key-model.weights.bin",
+                    "json" => "$key-model.json",
+                ];
 
-                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                    $this->linkAssetToUser($this->user['id'], $name, $isPublic);
-
+                foreach ($fileNames as $k => $file) {
+                    if ($k == "json") {
+                        $extension = 'text/json';
+                    } else {
+                        $extension = 'application/octet-stream';
+                    }
+                    $urlToReturn[] = $this->getUrlUpload($file, 'vittai-assets', $extension);
+                    $this->linkAssetToUser($this->user['id'], $file, $isPublic);
                 }
+
                 return [
-                    "name" => $files_name,
-                    "success" => true
-                ];   
+                    "success" => true,
+                    "urls" => $urlToReturn,
+                    "key" => $key,
+                ];
             },
             "ai-put-meta" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT") {
-                    $content = file_get_contents('php://input');
                     $key = $_GET["key"];
                     $name = $key . '-' . $_GET["name"];
                     $isPublic = $_GET["isPublic"] == "true" ? true : false;
@@ -255,16 +268,13 @@ class ControllerUserAssets
                         ];
                     }
 
-                    $options = [
-                        'name' => $name,
-                        'content' => file_get_contents($content),
-                    ];
-                    
-                    $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
+                    $metaUrl = $this->getUrlUpload($name, 'vittai-assets', 'text/json');
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
+
                     return [
-                        "name" => $name,
-                        "success" => true
+                        "success" => true,
+                        "metaUrl" => $metaUrl,
+                        "key" => $key,
                     ];
                 } else {
                     return [
@@ -275,14 +285,12 @@ class ControllerUserAssets
             "ai-get" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "GET") {
                     $key = $_GET["key"];
-                    $Files = [];
-
                     $filesNames = [
                         "meta" => "$key-metadata.json",
                         "json" => "$key-model.json",
                         "bin" => "$key-model.weights.bin",
                     ];
-
+                    $urlsToGet = [];
                     foreach ($filesNames as $fileName) {
 
                         $isPublic = $this->isTheAssetPublic($fileName);
@@ -290,29 +298,26 @@ class ControllerUserAssets
                         if (!empty($this->user)) {
                             $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
                         }
-
+                        
                         if ($isPublic || $assetOwner) {
-                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($fileName);
-                            if ($objExist) {
-                                $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($fileName);
-                                $dataType = $this->dataTypeFromExtension($fileName);
-                                if (!$dataType) {
-                                    return [
-                                        "success" => false,
-                                        "message" => "File type not supported.",
-                                    ];
-                                }
-                                $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
-                                $Files[$fileName] = $base64;
-                            }
-                        } 
+                            $cmd = $this->clientS3->getCommand('GetObject', [
+                                'Bucket' => 'vittai-assets',
+                                'Key' => $fileName
+                            ]);
+                            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                            
+                            $urlsToGet[] = [
+                                "key" => $fileName,
+                                "url" => (string) $request->getUri(),
+                            ];
+                        }
                     }
 
                     return [
                         "success" => true,
-                        "files" => $Files,
+                        "urls" => $urlsToGet
                     ];
-
                 } else {
                     return [
                         "error" => "Method not allowed",
@@ -343,7 +348,6 @@ class ControllerUserAssets
                     return [
                         "success" => true,
                     ];
-
                 } else {
                     return [
                         "error" => "Method not allowed",
@@ -360,167 +364,61 @@ class ControllerUserAssets
                         $key = md5(uniqid(rand(), true));
                     }
 
-                    $imagesToDelete = [];
-                    $imagesLinks = [];
-
-                    // get all linked image with the user who start by the key
-                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
-
-                    $toDelete = true;
-                    foreach ($existingImages as $existingImage) {
+                    try {
+                        $imagesToDelete = [];
+                        $linkToDelete = [];
+                        // get all linked image with the user who start by the key
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+                        $imagesUrl = [];
+    
+                        $toDelete = true;
+                        foreach ($existingImages as $existingImage) {
+                            foreach ($images as $image) {
+                                if (str_contains($existingImage->getLink(), $image['id'])) {
+                                    $toDelete = false;
+                                }
+                            }
+                            if ($toDelete) {
+                                $imagesToDelete[] = ['Key' => $existingImage->getLink()];
+                                $linkToDelete[] = $existingImage;
+                            }
+                        }
+    
+                        // Delete all image that are not in the new list
+                        if (!empty($imagesToDelete)) {
+                            $this->deleteMultipleAssetsS3($imagesToDelete, 'vittai-assets');
+                        }
+    
+                        if (!empty($linkToDelete)) {
+                            foreach ($linkToDelete as $link) {
+                                $this->entityManager->remove($link);
+                            }
+                            $this->entityManager->flush();
+                        }
+    
                         foreach ($images as $image) {
-                            if ($existingImage->getLink() == $image['id']) {
-                                $toDelete = false; 
+                            if ($image['update'] == 'false') {
+                                $name = $key . '-' . $image['id'] . '.png';
+                                $imagesUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'image/png');
+                                $this->linkAssetToUser($this->user['id'], $name, true);
+                            } else if ($image['update'] == 'true') {
+                                $imagesUrl[] = false;
                             }
                         }
-                        if (!$toDelete) {
-                            $imagesToDelete[] = $existingImage->getLink();
-                        }
-                    }
-
-                    // Delete all image that are not in the new list
-                    foreach ($imagesToDelete as $imageToDelete) {
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($imageToDelete)->delete();
-                        $this->deleteUserLinkAsset($this->user['id'], $imageToDelete);
-                    }
-
-                    foreach ($images as $image) {
-
-                        $name = $key . '-' . $image['id'] . '.jpg';
-                        //check if the image already exists
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
-                        if ($image['content'] != 'false' && $objExist) {
-                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                        } else if ($image['content'] == 'false') {
-                            continue;
-                        }
-
-                        $content = $image['content'];
-                        $options = [
-                            'name'    => $name,
-                            'content' => file_get_contents($content),
+    
+                        return [
+                            "success" => true,
+                            "urls" => $imagesUrl,
+                            "key" => $key,
                         ];
-
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                        $this->linkAssetToUser($this->user['id'], $name, true);
-                        $imagesLinks[] = $name;
-                    }
-
-                    return [
-                        "success" => true,
-                        "images" => $imagesLinks,
-                        "key" => $key,
-                    ];
-
-                } else {
-                    return [
-                        "success" => false,
-                        "error" => "Method not allowed",
-                    ];
-                }
-            },
-            "ai-upload-sounds" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
-                    $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $sounds = $request['sounds'];
-
-                    if (!$key) {
-                        $key = md5(uniqid(rand(), true));
-                    }
-
-                    $soundsToDelete = [];
-                    $soundsLinks = [];
-
-                    // get all linked sound with the user who start by the key
-                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
-
-                    $toDelete = true;
-                    foreach ($existingSounds as $existingSound) {
-                        foreach ($sounds as $sound) {
-                            if ($existingSound->getLink() == $sound['id']) {
-                                $toDelete = false; 
-                            }
-                        }
-                        if (!$toDelete) {
-                            $soundsToDelete[] = $existingSound->getLink();
-                        }
-                    }
-
-                    // Delete all sounds that are not in the new list
-                    foreach ($soundsToDelete as $soundToDelete) {
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($soundToDelete)->delete();
-                        $this->deleteUserLinkAsset($this->user['id'], $soundToDelete);
-                    }
-
-                    foreach ($sounds as $sound) {
-
-                        $name = $key . '-' . $sound['id'];
-                        //check if the sound already exists
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($name);
-                        if ($sound['content'] != 'false' && $objExist) {
-                            $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($name)->delete();
-                        } else if ($sound['content'] == 'false') {
-                            continue;
-                        }
-
-                        $content = $sound['content'];
-                        $options = [
-                            'name'    => $name,
-                            'content' => file_get_contents($content),
-                        ];
-
-                        $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                        $this->linkAssetToUser($this->user['id'], $name, true);
-                        $soundsLinks[] = $name;
-                    }
-
-                    return [
-                        "success" => true,
-                        "sounds" => $soundsLinks,
-                        "key" => $key,
-                    ];
-
-                } else {
-                    return [
-                        "success" => false,
-                        "error" => "Method not allowed",
-                    ];
-                }
-            },
-            "ai-get-sounds" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
-
-                    if (!$key) {
+                    } catch (Exception $e) {
                         return [
                             "success" => false,
-                            "message" => "No key provided",
+                            "error" => $e->getMessage(),
                         ];
                     }
-                    
-                    $soundsToGet = [];
-                    // get all linked image with the user who start by the key
-                    $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
-                    foreach ($existingSounds as $sound) {
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($sound->getLink());
-                        if ($objExist) {
-                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($sound->getLink());
-                            $dataType = $this->dataTypeFromExtension($sound->getLink());
-                            $base64 = 'data:application/json' . ';base64,' . base64_encode($objectUp->download()->getContents());
-                            $soundsToGet[] = [
-                                "id" => $sound->getLink(),
-                                "content" => $base64,
-                            ];   
-                        }
-                    }
 
-                    return [
-                        "success" => true,
-                        "images" => $soundsToGet,
-                    ];
 
                 } else {
                     return [
@@ -539,40 +437,142 @@ class ControllerUserAssets
                             "message" => "No key provided",
                         ];
                     }
-                    
-                    /**
-                     * @From Naser
-                     * A non connected user should have the possiblity to get images
-                     */
-                    // $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    // if (!$user) {
-                    //     return [
-                    //         "success" => false,
-                    //         "message" => "User not found",
-                    //     ];
-                    // }
 
                     $imagesToGet = [];
                     // get all linked image with the user who start by the key
-                    $existingImages = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
-                    foreach ($existingImages as $image) {
-                        $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($image->getLink());
-                        if ($objExist) {
-                            $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($image->getLink());
-                            $dataType = $this->dataTypeFromExtension($image->getLink());
-                            $base64 = 'data:' . $dataType . ';base64,' . base64_encode($objectUp->download()->getContents());
+                    $existingImagesFromS3 = $this->listObjectsFromBucket('vittai-assets', $key);
+
+                    if ($existingImagesFromS3 && !empty($existingImagesFromS3['Contents'])) {
+                        foreach ($existingImagesFromS3['Contents'] as $image) {
+                            $cmd = $this->clientS3->getCommand('GetObject', [
+                                'Bucket' => 'vittai-assets',
+                                'Key' => $image['Key']
+                            ]);
+                            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
                             $imagesToGet[] = [
-                                "id" => $image->getLink(),
-                                "content" => $base64,
-                            ];   
+                                "key" => $image['Key'],
+                                "url" => (string) $request->getUri(),
+                            ];
                         }
                     }
-
                     return [
                         "success" => true,
                         "images" => $imagesToGet,
                     ];
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "ai-upload-sounds" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $sounds = $request['sounds'];
 
+                    if (!$key) {
+                        $key = md5(uniqid(rand(), true));
+                    }
+
+                    try {
+                        $soundsToDelete = [];
+                        $linkToDelete = [];
+                        $soundUrl = [];
+                        // get all linked image with the user who start by the key
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
+    
+                        $toDelete = true;
+                        foreach ($existingSounds as $existingSound) {
+                            foreach ($sounds as $sound) {
+                                if (str_contains($existingSound->getLink(), $sound['id'])) {
+                                    $toDelete = false;
+                                }
+                            }
+                            if ($toDelete) {
+                                $soundsToDelete[] = ['Key' => $existingSound->getLink()];
+                                $linkToDelete[] = $existingSound;
+                            }
+                        }
+    
+                        // Delete all image that are not in the new list
+                        if (!empty($soundsToDelete)) {
+                            $this->deleteMultipleAssetsS3($soundsToDelete, 'vittai-assets');
+                        }
+    
+                        if (!empty($linkToDelete)) {
+                            foreach ($linkToDelete as $link) {
+                                $this->entityManager->remove($link);
+                            }
+                            $this->entityManager->flush();
+                        }
+    
+                        foreach ($sounds as $sound) {
+                            if ($sound['update'] == 'false') {
+                                $name = $key . '-' . $sound['id'] . '.json';
+                                $soundUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'application/json');
+                                $this->linkAssetToUser($this->user['id'], $name, true);
+                            } else if ($sound['update'] == 'true') {
+                                $soundUrl[] = false;
+                            }
+                        }
+    
+                        return [
+                            "success" => true,
+                            "urls" => $soundUrl,
+                            "key" => $key,
+                        ];
+                    } catch (Exception $e) {
+                        return [
+                            "success" => false,
+                            "error" => $e->getMessage(),
+                        ];
+                    }
+
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "ai-get-sounds" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "No key provided",
+                        ];
+                    }
+
+                    $soundsToGet = [];
+                    // get all linked image with the user who start by the key
+                    $existingSounds = $this->listObjectsFromBucket('vittai-assets', $key);
+
+                    if ($existingSounds && !empty($existingSounds['Contents'])) {
+                        foreach ($existingSounds['Contents'] as $sound) {
+                            $cmd = $this->clientS3->getCommand('GetObject', [
+                                'Bucket' => 'vittai-assets',
+                                'Key' => $sound['Key']
+                            ]);
+                            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                            $soundsToGet[] = [
+                                "key" => $sound['Key'],
+                                "url" => (string) $request->getUri(),
+                            ];
+                        }
+                    }
+                    return [
+                        "success" => true,
+                        "sounds" => $soundsToGet,
+                    ];
                 } else {
                     return [
                         "success" => false,
@@ -593,24 +593,32 @@ class ControllerUserAssets
                     }
 
                     $assetsDeleted = [];
+                    $assetsS3Deleted = [];
+                    $linkToDelete = [];
                     // get all linked image with the user who start by the key
                     foreach ($keys as $key) {
                         $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
                         foreach ($existingAssets as $asset) {
-                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
-                            if ($objExist) {
-                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink())->delete();
-                                $this->deleteUserLinkAsset($this->user['id'], $asset->getLink());  
-                                $assetsDeleted[] = $asset->getLink();
-                            }
+                            $assetsS3Deleted[] = ['Key' => $asset->getLink()];
+                            $linkToDelete[] = $asset;
                         }
+                    }
+                    if (!empty($linkToDelete)) {
+                        foreach ($linkToDelete as $link) {
+                            $this->entityManager->remove($link);
+                        }
+                        $this->entityManager->flush();
+                    }
+
+                    if (!empty($assetsS3Deleted)) {
+                        $this->deleteMultipleAssetsS3($assetsS3Deleted, 'vittai-assets');
                     }
 
                     return [
                         "success" => true,
                         "assets" => $assetsDeleted,
+                        "assetsS3" => $assetsS3Deleted,
                     ];
-
                 } else {
                     return [
                         "success" => false,
@@ -645,9 +653,9 @@ class ControllerUserAssets
                                 $options = [
                                     'name'    => $newAssetLink,
                                     'content' => $objectUp->download()->getContents(),
-                                 ];
+                                ];
                                 $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                                $this->linkAssetToUser($this->user['id'], $newAssetLink, true);  
+                                $this->linkAssetToUser($this->user['id'], $newAssetLink, true);
                                 $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
                             }
                         }
@@ -657,7 +665,71 @@ class ControllerUserAssets
                         "success" => true,
                         "assets" => $assetsDuplicated,
                     ];
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "test_method" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+                    $imagesUrl = [];
+                    try {
+                        $cmd = $this->clientS3->getCommand('GetObject', [
+                            'Bucket' => 'vittai-assets',
+                            'Key' => 'imtb7c.png'
+                        ]);
 
+                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                        return [
+                            "success" => true,
+                            "url" => (string) $request->getUri(),
+                        ];
+                    } catch (S3Exception $th) {
+                        return [
+                            "success" => false,
+                            "error" => $th,
+                        ];
+                    }
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "Method not allowed",
+                    ];
+                }
+            },
+            "test_method_post" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
+                    $imagesUrl = [];
+
+                    try {
+                        $cmd = $this->clientS3->getCommand('PutObject', [
+                            'Bucket' => 'vittai-assets',
+                            'Key' => "$key.png",
+                            'contentType' => 'image/png',
+                        ]);
+
+                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                        return [
+                            "success" => true,
+                            "url" => (string) $request->getUri(),
+                        ];
+                    } catch (S3Exception $e) {
+                        return [
+                            "success" => false,
+                            "error" => $e->getMessage(),
+                        ];
+                    }
+
+                    return [
+                        "success" => true,
+                        "images" => $imagesUrl,
+                    ];
                 } else {
                     return [
                         "success" => false,
@@ -728,7 +800,59 @@ class ControllerUserAssets
         return false;
     }
 
-    private function dataTypeFromExtension(String $fileName):? String {
+    private function deleteMultipleAssetsS3($objects, $bucket)
+    {
+        try {
+            $this->clientS3->deleteObjects([
+                'Bucket' => $bucket,
+                'Delete' => [
+                    'Objects' => $objects,
+                ],
+            ]);
+        } catch (S3Exception $e) {
+            return [
+                "success" => false,
+                "error" => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function getUrlUpload($object, $bucket, $contentType)
+    {
+        try {
+            $cmd = $this->clientS3->getCommand('PutObject', [
+                'Bucket' => $bucket,
+                'Key' => "$object",
+                'contentType' => $contentType,
+            ]);
+            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+            return ['key' => $object, 'url' => (string) $request->getUri()];
+        } catch (S3Exception $e) {
+            return [
+                "success" => false,
+                "error" => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function listObjectsFromBucket($bucket, $prefix = null)
+    {
+        try {
+            $results = $this->clientS3->listObjectsV2([
+                'Bucket' => $bucket,
+                'Prefix' => $prefix,
+            ]);
+            return $results;
+        } catch (S3Exception $e) {
+            return [
+                "success" => false,
+                "error" => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function dataTypeFromExtension(String $fileName): ?String
+    {
         $path = $fileName;
         $type = pathinfo($path, PATHINFO_EXTENSION);
         $dataType = "";
@@ -754,7 +878,8 @@ class ControllerUserAssets
         return $dataType;
     }
 
-    private function createTokenAndOpenStack(String $name, String $password, String $tenant) {
+    private function createTokenAndOpenStack(String $name, String $password, String $tenant)
+    {
         $this->token->create([
             'user' => [
                 'name' => $name,
