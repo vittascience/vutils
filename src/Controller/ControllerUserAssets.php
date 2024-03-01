@@ -24,6 +24,7 @@ class ControllerUserAssets
     protected $user;
     protected $whiteList;
     protected $clientS3;
+    protected $bucket;
 
     public function __construct($entityManager, $user)
     {
@@ -44,6 +45,7 @@ class ControllerUserAssets
             'endpoint' => 'https://s3.fr-par.scw.cloud',
             'signature_version' => 'v4'
         ]);
+        $this->bucket = $_ENV['VS_S3_BUCKET'] ? $_ENV['VS_S3_BUCKET'] : "vittai-assets";
     }
 
     public function action($action, $data = [])
@@ -245,7 +247,7 @@ class ControllerUserAssets
                     } else {
                         $extension = 'application/octet-stream';
                     }
-                    $urlToReturn[] = $this->getUrlUpload($file, 'vittai-assets', $extension);
+                    $urlToReturn[] = $this->getUrlUpload($file, $this->bucket, $extension);
                     $this->linkAssetToUser($this->user['id'], $file, $isPublic);
                 }
 
@@ -268,7 +270,7 @@ class ControllerUserAssets
                         ];
                     }
 
-                    $metaUrl = $this->getUrlUpload($name, 'vittai-assets', 'text/json');
+                    $metaUrl = $this->getUrlUpload($name, $this->bucket, 'text/json');
                     $this->linkAssetToUser($this->user['id'], $name, $isPublic);
 
                     return [
@@ -301,7 +303,7 @@ class ControllerUserAssets
                         
                         if ($isPublic || $assetOwner) {
                             $cmd = $this->clientS3->getCommand('GetObject', [
-                                'Bucket' => 'vittai-assets',
+                                'Bucket' => $this->bucket,
                                 'Key' => $fileName
                             ]);
                             $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
@@ -387,7 +389,7 @@ class ControllerUserAssets
     
                         // Delete all image that are not in the new list
                         if (!empty($imagesToDelete)) {
-                            $this->deleteMultipleAssetsS3($imagesToDelete, 'vittai-assets');
+                            $this->deleteMultipleAssetsS3($imagesToDelete, $this->bucket);
                         }
     
                         if (!empty($linkToDelete)) {
@@ -400,7 +402,7 @@ class ControllerUserAssets
                         foreach ($images as $image) {
                             if ($image['update'] == 'false') {
                                 $name = $key . '-' . $image['id'] . '.png';
-                                $imagesUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'image/png');
+                                $imagesUrl[] = $this->getUrlUpload($name, $this->bucket, 'image/png');
                                 $this->linkAssetToUser($this->user['id'], $name, true);
                             } else if ($image['update'] == 'true') {
                                 $imagesUrl[] = false;
@@ -440,12 +442,12 @@ class ControllerUserAssets
 
                     $imagesToGet = [];
                     // get all linked image with the user who start by the key
-                    $existingImagesFromS3 = $this->listObjectsFromBucket('vittai-assets', $key);
+                    $existingImagesFromS3 = $this->listObjectsFromBucket($this->bucket, $key);
 
                     if ($existingImagesFromS3 && !empty($existingImagesFromS3['Contents'])) {
                         foreach ($existingImagesFromS3['Contents'] as $image) {
                             $cmd = $this->clientS3->getCommand('GetObject', [
-                                'Bucket' => 'vittai-assets',
+                                'Bucket' => $this->bucket,
                                 'Key' => $image['Key']
                             ]);
                             $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
@@ -500,7 +502,7 @@ class ControllerUserAssets
     
                         // Delete all image that are not in the new list
                         if (!empty($soundsToDelete)) {
-                            $this->deleteMultipleAssetsS3($soundsToDelete, 'vittai-assets');
+                            $this->deleteMultipleAssetsS3($soundsToDelete, $this->bucket);
                         }
     
                         if (!empty($linkToDelete)) {
@@ -513,7 +515,7 @@ class ControllerUserAssets
                         foreach ($sounds as $sound) {
                             if ($sound['update'] == 'false') {
                                 $name = $key . '-' . $sound['id'] . '.json';
-                                $soundUrl[] = $this->getUrlUpload($name, 'vittai-assets', 'application/json');
+                                $soundUrl[] = $this->getUrlUpload($name, $this->bucket, 'application/json');
                                 $this->linkAssetToUser($this->user['id'], $name, true);
                             } else if ($sound['update'] == 'true') {
                                 $soundUrl[] = false;
@@ -553,12 +555,12 @@ class ControllerUserAssets
 
                     $soundsToGet = [];
                     // get all linked image with the user who start by the key
-                    $existingSounds = $this->listObjectsFromBucket('vittai-assets', $key);
+                    $existingSounds = $this->listObjectsFromBucket($this->bucket, $key);
 
                     if ($existingSounds && !empty($existingSounds['Contents'])) {
                         foreach ($existingSounds['Contents'] as $sound) {
                             $cmd = $this->clientS3->getCommand('GetObject', [
-                                'Bucket' => 'vittai-assets',
+                                'Bucket' => $this->bucket,
                                 'Key' => $sound['Key']
                             ]);
                             $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
@@ -611,7 +613,7 @@ class ControllerUserAssets
                     }
 
                     if (!empty($assetsS3Deleted)) {
-                        $this->deleteMultipleAssetsS3($assetsS3Deleted, 'vittai-assets');
+                        $this->deleteMultipleAssetsS3($assetsS3Deleted, $this->bucket);
                     }
 
                     return [
@@ -678,7 +680,7 @@ class ControllerUserAssets
                     $imagesUrl = [];
                     try {
                         $cmd = $this->clientS3->getCommand('GetObject', [
-                            'Bucket' => 'vittai-assets',
+                            'Bucket' => $this->bucket,
                             'Key' => 'imtb7c.png'
                         ]);
 
@@ -708,7 +710,7 @@ class ControllerUserAssets
 
                     try {
                         $cmd = $this->clientS3->getCommand('PutObject', [
-                            'Bucket' => 'vittai-assets',
+                            'Bucket' => $this->bucket,
                             'Key' => "$key.png",
                             'contentType' => 'image/png',
                         ]);
