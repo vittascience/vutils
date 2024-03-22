@@ -45,7 +45,13 @@ class ControllerUserAssets
             'endpoint' => 'https://s3.fr-par.scw.cloud',
             'signature_version' => 'v4'
         ]);
-        $this->bucket = isset($_ENV['VS_S3_BUCKET']) ? $_ENV['VS_S3_BUCKET'] : "vittai-assets";
+        if (isset($_ENV['VS_S3_BUCKET'])) {
+            if (empty($_ENV['VS_S3_BUCKET'])) {
+                $this->bucket = "vittai-assets";
+            } else {
+                $this->bucket = $_ENV['VS_S3_BUCKET'];
+            }
+        }
     }
 
     public function action($action, $data = [])
