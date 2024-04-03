@@ -45,10 +45,9 @@ class ControllerUserAssets
             'endpoint' => 'https://s3.fr-par.scw.cloud',
             'signature_version' => 'v4'
         ]);
+        $this->bucket = "vittai-assets";
         if (isset($_ENV['VS_S3_BUCKET'])) {
-            if (empty($_ENV['VS_S3_BUCKET'])) {
-                $this->bucket = "vittai-assets";
-            } else {
+            if (!empty($_ENV['VS_S3_BUCKET'])) {
                 $this->bucket = $_ENV['VS_S3_BUCKET'];
             }
         }
@@ -306,7 +305,7 @@ class ControllerUserAssets
                         if (!empty($this->user)) {
                             $assetOwner = $this->isUserLinkedToAsset($this->user['id'], $fileName);
                         }
-                        
+
                         if ($isPublic || $assetOwner) {
                             $cmd = $this->clientS3->getCommand('GetObject', [
                                 'Bucket' => $this->bucket,
@@ -314,7 +313,7 @@ class ControllerUserAssets
                             ]);
                             $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
 
-                            
+
                             $urlsToGet[] = [
                                 "key" => $fileName,
                                 "url" => (string) $request->getUri(),
@@ -379,7 +378,7 @@ class ControllerUserAssets
                         $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
                         $existingImages = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
                         $imagesUrl = [];
-    
+
                         $toDelete = true;
                         foreach ($existingImages as $existingImage) {
                             foreach ($images as $image) {
@@ -392,19 +391,19 @@ class ControllerUserAssets
                                 $linkToDelete[] = $existingImage;
                             }
                         }
-    
+
                         // Delete all image that are not in the new list
                         if (!empty($imagesToDelete)) {
                             $this->deleteMultipleAssetsS3($imagesToDelete, $this->bucket);
                         }
-    
+
                         if (!empty($linkToDelete)) {
                             foreach ($linkToDelete as $link) {
                                 $this->entityManager->remove($link);
                             }
                             $this->entityManager->flush();
                         }
-    
+
                         foreach ($images as $image) {
                             if ($image['update'] == 'false') {
                                 $name = $key . '-' . $image['id'] . '.png';
@@ -414,7 +413,7 @@ class ControllerUserAssets
                                 $imagesUrl[] = false;
                             }
                         }
-    
+
                         return [
                             "success" => true,
                             "urls" => $imagesUrl,
@@ -426,8 +425,6 @@ class ControllerUserAssets
                             "error" => $e->getMessage(),
                         ];
                     }
-
-
                 } else {
                     return [
                         "success" => false,
@@ -492,7 +489,7 @@ class ControllerUserAssets
                         // get all linked image with the user who start by the key
                         $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
                         $existingSounds = $this->entityManager->getRepository(UserAssets::class)->getUserAssetsQueryBuilderWithPrefixedKey($key, $user);
-    
+
                         $toDelete = true;
                         foreach ($existingSounds as $existingSound) {
                             foreach ($sounds as $sound) {
@@ -505,19 +502,19 @@ class ControllerUserAssets
                                 $linkToDelete[] = $existingSound;
                             }
                         }
-    
+
                         // Delete all image that are not in the new list
                         if (!empty($soundsToDelete)) {
                             $this->deleteMultipleAssetsS3($soundsToDelete, $this->bucket);
                         }
-    
+
                         if (!empty($linkToDelete)) {
                             foreach ($linkToDelete as $link) {
                                 $this->entityManager->remove($link);
                             }
                             $this->entityManager->flush();
                         }
-    
+
                         foreach ($sounds as $sound) {
                             if ($sound['update'] == 'false') {
                                 $name = $key . '-' . $sound['id'] . '.json';
@@ -527,7 +524,7 @@ class ControllerUserAssets
                                 $soundUrl[] = false;
                             }
                         }
-    
+
                         return [
                             "success" => true,
                             "urls" => $soundUrl,
@@ -539,8 +536,6 @@ class ControllerUserAssets
                             "error" => $e->getMessage(),
                         ];
                     }
-
-
                 } else {
                     return [
                         "success" => false,
