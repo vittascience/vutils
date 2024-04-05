@@ -11,10 +11,11 @@ use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
 use OpenStack\Identity\v3\Models\Token;
-
+use Utils\Traits\UtilsAssetsTrait;
 
 class ControllerUserAssets
 {
+    use UtilsAssetsTrait;
     protected $client;
     protected $token;
     protected $openstack;
@@ -630,50 +631,7 @@ class ControllerUserAssets
                 }
             },
             "duplicate-assets" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
-                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-
-                    foreach ($keys as $key) {
-                        $check = $this->checkKeyAndUser($key, $user);
-                        if ($check['success'] == false) {
-                            return $check;
-                        }
-                    }
-
-                    $duplicatedKey = $key = md5(uniqid(rand(), true));
-                    $assetsDuplicated = [];
-                    // get all linked image with the user who start by the key
-                    foreach ($keys as $key) {
-                        $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
-                        foreach ($existingAssets as $asset) {
-                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
-                            if ($objExist) {
-
-                                $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink());
-                                $dataType = $this->dataTypeFromExtension($asset->getLink());
-                                $newAssetLink = str_replace($key, $duplicatedKey, $asset->getLink());
-                                $options = [
-                                    'name'    => $newAssetLink,
-                                    'content' => $objectUp->download()->getContents(),
-                                ];
-                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                                $this->linkAssetToUser($this->user['id'], $newAssetLink, true);
-                                $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
-                            }
-                        }
-                    }
-
-                    return [
-                        "success" => true,
-                        "assets" => $assetsDuplicated,
-                    ];
-                } else {
-                    return [
-                        "success" => false,
-                        "error" => "Method not allowed",
-                    ];
-                }
+                UtilsAssetsTrait::duplicateAssets($this->entityManager, []);
             },
             "test_method" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
