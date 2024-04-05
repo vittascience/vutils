@@ -643,31 +643,41 @@ class ControllerUserAssets
 
                     $duplicatedKey = $key = md5(uniqid(rand(), true));
                     $assetsDuplicated = [];
-                    // get all linked image with the user who start by the key
-                    foreach ($keys as $key) {
-                        $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
-                        foreach ($existingAssets as $asset) {
-                            $objExist = $this->openstack->objectStoreV1()->getContainer('ai-assets')->objectExists($asset->getLink());
-                            if ($objExist) {
 
-                                $objectUp = $this->openstack->objectStoreV1()->getContainer('ai-assets')->getObject($asset->getLink());
-                                $dataType = $this->dataTypeFromExtension($asset->getLink());
+                    try {
+                        // get all linked image with the user who start by the key
+                        foreach ($keys as $key) {
+                            $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
+                            foreach ($existingAssets as $asset) {
                                 $newAssetLink = str_replace($key, $duplicatedKey, $asset->getLink());
-                                $options = [
-                                    'name'    => $newAssetLink,
-                                    'content' => $objectUp->download()->getContents(),
-                                ];
-                                $this->openstack->objectStoreV1()->getContainer('ai-assets')->createObject($options);
-                                $this->linkAssetToUser($this->user['id'], $newAssetLink, true);
-                                $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
+                                $result = $this->clientS3->copyObject([
+                                    'Bucket'     => $this->bucket,
+                                    'Key'        => $newAssetLink,
+                                    'CopySource' => "{$this->bucket}/{$asset->getLink()}"
+                                ]);
+                                if ($result["@metadata"]["statusCode"] == 200) {
+                                    $this->linkAssetToUser($this->user['id'], $newAssetLink, true);
+                                    $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
+                                } else {
+                                    return [
+                                        "success" => false,
+                                        "error" => "An error occured while duplicating the assets",
+                                    ];
+                                }
                             }
                         }
-                    }
 
-                    return [
-                        "success" => true,
-                        "assets" => $assetsDuplicated,
-                    ];
+                        return [
+                            "success" => true,
+                            "assets" => $assetsDuplicated,
+                        ];
+
+                    } catch (S3Exception $e) {
+                        return [
+                            "success" => false,
+                            "error" => $e->getMessage(),
+                        ];
+                    }
                 } else {
                     return [
                         "success" => false,
