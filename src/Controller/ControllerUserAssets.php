@@ -11,10 +11,11 @@ use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
 use OpenStack\Identity\v3\Models\Token;
-
+use Utils\Traits\UtilsAssetsTrait;
 
 class ControllerUserAssets
 {
+    use UtilsAssetsTrait;
     protected $client;
     protected $token;
     protected $openstack;
@@ -630,7 +631,8 @@ class ControllerUserAssets
                 }
             },
             "duplicate-assets" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                UtilsAssetsTrait::duplicateAssets($this->entityManager);
+/*                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
 
@@ -683,7 +685,7 @@ class ControllerUserAssets
                         "success" => false,
                         "error" => "Method not allowed",
                     ];
-                }
+                } */
             },
             "test_method" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
