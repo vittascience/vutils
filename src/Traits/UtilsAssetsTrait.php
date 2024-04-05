@@ -7,9 +7,15 @@ use Utils\Entity\UserAssets;
 use Aws\S3\Exception\S3Exception;
 
 trait UtilsAssetsTrait {
-    public static function duplicateAssets($entityManager) {
+    public static function duplicateAssets($entityManager, $knownedKey = null) {
         if ($_SERVER['REQUEST_METHOD'] == "POST") {
             $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
+            
+            if ($knownedKey) {
+                foreach ($knownedKey as $kkey) {
+                    $keys[] = $kkey;
+                }
+            }
             $user = $entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
 
             foreach ($keys as $key) {

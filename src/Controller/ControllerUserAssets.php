@@ -631,61 +631,7 @@ class ControllerUserAssets
                 }
             },
             "duplicate-assets" => function () {
-                UtilsAssetsTrait::duplicateAssets($this->entityManager);
-/*                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $keys = !empty($_POST['keys']) ? $_POST['keys'] : null;
-                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-
-                    foreach ($keys as $key) {
-                        $check = $this->checkKeyAndUser($key, $user);
-                        if ($check['success'] == false) {
-                            return $check;
-                        }
-                    }
-
-                    $duplicatedKey = $key = md5(uniqid(rand(), true));
-                    $assetsDuplicated = [];
-
-                    try {
-                        // get all linked image with the user who start by the key
-                        foreach ($keys as $key) {
-                            $existingAssets = $this->entityManager->getRepository(UserAssets::class)->getPublicAssetsQueryBuilderWithPrefixedKey($key);
-                            foreach ($existingAssets as $asset) {
-                                $newAssetLink = str_replace($key, $duplicatedKey, $asset->getLink());
-                                $result = $this->clientS3->copyObject([
-                                    'Bucket'     => $this->bucket,
-                                    'Key'        => $newAssetLink,
-                                    'CopySource' => "{$this->bucket}/{$asset->getLink()}"
-                                ]);
-                                if ($result["@metadata"]["statusCode"] == 200) {
-                                    $this->linkAssetToUser($this->user['id'], $newAssetLink, true);
-                                    $assetsDuplicated[] = ['from' => $asset->getLink(), 'to' => $newAssetLink];
-                                } else {
-                                    return [
-                                        "success" => false,
-                                        "error" => "An error occured while duplicating the assets",
-                                    ];
-                                }
-                            }
-                        }
-
-                        return [
-                            "success" => true,
-                            "assets" => $assetsDuplicated,
-                        ];
-
-                    } catch (S3Exception $e) {
-                        return [
-                            "success" => false,
-                            "error" => $e->getMessage(),
-                        ];
-                    }
-                } else {
-                    return [
-                        "success" => false,
-                        "error" => "Method not allowed",
-                    ];
-                } */
+                UtilsAssetsTrait::duplicateAssets($this->entityManager, []);
             },
             "test_method" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
