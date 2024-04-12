@@ -406,7 +406,13 @@ class ControllerUserAssets
                         }
 
                         foreach ($images as $image) {
-                            if ($image['update'] == 'false') {
+                            $imageExist = false;
+                            foreach ($existingImages as $existingImage) {
+                                if ($existingImage->getLink() == $key . '-' . $image['id'] . '.png') {
+                                    $imageExist = true;
+                                }
+                            }
+                            if ($image['update'] == 'false' || $image['update'] == 'true' && !$imageExist) {
                                 $name = $key . '-' . $image['id'] . '.png';
                                 $imagesUrl[] = $this->getUrlUpload($name, $this->bucket, 'image/png');
                                 $this->linkAssetToUser($this->user['id'], $name, true);
