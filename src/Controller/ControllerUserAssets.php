@@ -522,7 +522,13 @@ class ControllerUserAssets
                         }
 
                         foreach ($sounds as $sound) {
-                            if ($sound['update'] == 'false') {
+                            $existingSoundBool = false;
+                            foreach ($existingSounds as $existingSound) {
+                                if ($existingSound->getLink() == $key . '-' . $sound['id'] . '.json') {
+                                    $existingSoundBool = true;
+                                }
+                            }
+                            if ($sound['update'] == 'false' || $sound['update'] == 'true' && !$existingSoundBool) {
                                 $name = $key . '-' . $sound['id'] . '.json';
                                 $soundUrl[] = $this->getUrlUpload($name, $this->bucket, 'application/json');
                                 $this->linkAssetToUser($this->user['id'], $name, true);
