@@ -126,7 +126,7 @@
                                             <img src='https://vittascience.com/public/content/img/mails/twitter%20gris.png' title='Twitter'>
                                         </a>
                                     </div>
-                                    <span>Copyright © 2024 Vittascience</span>
+                                    <span style='color: #565656;'>Copyright © 2024 Vittascience</span>
                                 </td>
                             </tr>
                         </table>
