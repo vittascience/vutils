@@ -36,7 +36,7 @@ class UserAssets
 
     /**
      * @ORM\Column(name="created_at", type="datetime", nullable=true)
-     * @var bool
+     * @var datetime
      */
     private $createdAt;
 
