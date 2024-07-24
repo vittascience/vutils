@@ -58,7 +58,7 @@ class ControllerUserAssets
     public function action($action, $data = [])
     {
 
-        if (empty($this->user) && !in_array($action, $this->whiteList)) {
+        if (empty($this->user) && !in_array($action, $this->whiteList) && $action != "generative_assets") {
             return [
                 "error" => "You must be logged in to access to this.",
             ];
