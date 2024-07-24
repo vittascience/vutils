@@ -10,8 +10,9 @@ use OpenStack\OpenStack;
 use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
-use OpenStack\Identity\v3\Models\Token;
+use Utils\Entity\GenerativeAssets;
 use Utils\Traits\UtilsAssetsTrait;
+use OpenStack\Identity\v3\Models\Token;
 
 class ControllerUserAssets
 {
@@ -645,71 +646,43 @@ class ControllerUserAssets
             "duplicate-assets" => function () {
                 UtilsAssetsTrait::duplicateAssets($this->entityManager, []);
             },
-            "test_method" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
-                    $imagesUrl = [];
-                    try {
-                        $cmd = $this->clientS3->getCommand('GetObject', [
-                            'Bucket' => $this->bucket,
-                            'Key' => 'imtb7c.png'
-                        ]);
+            "generative_assets" => function () {
+                $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                $name = array_key_exists('name', $request) ? $request['name'] : null;
+                $user = array_key_exists('user', $request) ? $request['user'] : null;
 
-                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
 
-                        return [
-                            "success" => true,
-                            "url" => (string) $request->getUri(),
-                        ];
-                    } catch (S3Exception $th) {
-                        return [
-                            "success" => false,
-                            "error" => $th,
-                        ];
-                    }
-                } else {
+                if (!$name) {
                     return [
                         "success" => false,
-                        "error" => "Method not allowed",
+                        "message" => "No name provided",
                     ];
                 }
+
+                $dateNow = new \DateTime();
+                
+                if ($user) {
+                    $userRegular = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    if ($userRegular) {
+                        $user = $userRegular;
+                    } else {
+                        $nonRegularUser = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $user]);
+                        if ($nonRegularUser) {
+                            $user = $nonRegularUser;
+                        }
+                    }
+                } else {
+                    $user = null;
+                }
+
+                $generativeAsset = new GenerativeAssets();
+                $generativeAsset->setName($name);
+                $generativeAsset->setUser($user);
+                $generativeAsset->setCreatedAt($dateNow);
+                
+                $this->entityManager->persist($generativeAsset);
+                $this->entityManager->flush();
             },
-            "test_method_post" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
-                    $imagesUrl = [];
-
-                    try {
-                        $cmd = $this->clientS3->getCommand('PutObject', [
-                            'Bucket' => $this->bucket,
-                            'Key' => "$key.png",
-                            'contentType' => 'image/png',
-                        ]);
-
-                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
-
-                        return [
-                            "success" => true,
-                            "url" => (string) $request->getUri(),
-                        ];
-                    } catch (S3Exception $e) {
-                        return [
-                            "success" => false,
-                            "error" => $e->getMessage(),
-                        ];
-                    }
-
-                    return [
-                        "success" => true,
-                        "images" => $imagesUrl,
-                    ];
-                } else {
-                    return [
-                        "success" => false,
-                        "error" => "Method not allowed",
-                    ];
-                }
-            }
         );
 
         return call_user_func($this->actions[$action], $data);
