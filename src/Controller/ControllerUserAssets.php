@@ -57,11 +57,12 @@ class ControllerUserAssets
 
     public function action($action, $data = [])
     {
-
-        if (empty($this->user) && !in_array($action, $this->whiteList) && $action != "generative_assets") {
-            return [
-                "error" => "You must be logged in to access to this.",
-            ];
+        if ($action != 'generative_assets') {
+            if (empty($this->user) && !in_array($action, $this->whiteList)) {
+                return [
+                    "error" => "You must be logged in to access to this.",
+                ];
+            }
         }
         $this->actions = array(
             'adacraft' => function () {
