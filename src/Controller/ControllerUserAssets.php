@@ -647,10 +647,8 @@ class ControllerUserAssets
                 UtilsAssetsTrait::duplicateAssets($this->entityManager, []);
             },
             "generative_assets" => function () {
-                $request = !empty($_POST['data']) ? $_POST['data'] : null;
-                $name = array_key_exists('name', $request) ? $request['name'] : null;
-                $user = array_key_exists('user', $request) ? $request['user'] : null;
-
+                $name = array_key_exists('name', $_POST) ? htmlspecialchars($_POST['name']) : null;
+                $user = array_key_exists('user', $_POST) ? htmlspecialchars($_POST['user']) : null; 
 
                 if (!$name) {
                     return [

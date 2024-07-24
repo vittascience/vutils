@@ -11,7 +11,7 @@ use Doctrine\ORM\Mapping as ORM;
  * @ORM\Entity(repositoryClass="Utils\Repository\GenerativeAssetsRepository")
  * @ORM\Table(name="generative_assets")
  */
-class UserAssets
+class GenerativeAssets implements \JsonSerializable
 {
 
     /** 
