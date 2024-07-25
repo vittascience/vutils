@@ -40,6 +40,19 @@ class GenerativeAssets implements \JsonSerializable
      */
     private $createdAt;
 
+    /**
+     * @ORM\Column(name="prompt", type="string", length=255, nullable=false)
+     * @var string
+     */
+    private $prompt;
+
+
+    /**
+     * @ORM\Column(name="ip_address", type="string", length=255, nullable=true)
+     * @var string
+     */
+    private $ipAddress;
+
 
     /**
      * @return Integer
@@ -97,6 +110,28 @@ class GenerativeAssets implements \JsonSerializable
         return $this;
     }
 
+    public function getPrompt(): ?string
+    {
+        return $this->prompt;
+    }
+
+    public function setPrompt(string $prompt): self
+    {
+        $this->prompt = $prompt;
+        return $this;
+    }
+
+    public function getIpAddress(): ?string
+    {
+        return $this->ipAddress;
+    }
+
+    public function setIpAddress(string $ipAddress): self
+    {
+        $this->ipAddress = $ipAddress;
+        return $this;
+    }
+
 
     
     public function jsonSerialize()
@@ -106,6 +141,8 @@ class GenerativeAssets implements \JsonSerializable
             'user' => $this->user,
             'name' => $this->name,
             'createdAt' => $this->createdAt,
+            'prompt' => $this->prompt,
+            'ipAddress' => $this->ipAddress,
         ];
     }
 
