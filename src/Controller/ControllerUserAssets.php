@@ -650,6 +650,8 @@ class ControllerUserAssets
             "generative_assets" => function () {
                 $name = array_key_exists('name', $_POST) ? htmlspecialchars($_POST['name']) : null;
                 $user = array_key_exists('user', $_POST) ? htmlspecialchars($_POST['user']) : null; 
+                $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
+                $ipAddress = array_key_exists('ipAddress', $_POST) ? htmlspecialchars($_POST['ipAddress']) : null;
 
                 if (!$name) {
                     return [
@@ -678,6 +680,8 @@ class ControllerUserAssets
                 $generativeAsset->setName($name);
                 $generativeAsset->setUser($user);
                 $generativeAsset->setCreatedAt($dateNow);
+                $generativeAsset->setPrompt($prompt);
+                $generativeAsset->setIpAddress($ipAddress);
                 
                 $this->entityManager->persist($generativeAsset);
                 $this->entityManager->flush();
