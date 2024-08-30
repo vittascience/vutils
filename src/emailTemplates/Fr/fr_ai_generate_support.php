@@ -12,13 +12,8 @@
     <div style="position:relative; max-width:700px; min-width:500px; overflow:hidden; margin: 10px auto; padding:10px; border:#27b88e 3px solid; border-radius:10px;">
         <div style='text-align:center; font-size:16px;  margin: 0 10%; background-color:white; border-radius: 10px;  overflow:hidden;'>
             <div>Date: <?php echo json_decode($body, true)['date']; ?></div>
-            <div>Navigator: <?php echo "<ul>";
-            foreach (json_decode($body, true)['navigator'] as $key => $value){
-                echo "<li>$key: $value</li>";
-            }
-            echo "</ul>"; ?></div>
-            <div>Mobile: <?php echo json_decode($body, true)['mobile']; ?></div>
-            <div>Platform: <?php echo json_decode($body, true)['platform']; ?></div>
+
+            <div>Email: <?php echo json_decode($body, true)['userMail']; ?></div>
             <div>Message: <?php echo json_decode($body, true)['userMessage']; ?></div>
             <br>
             <hr style='width:150px; height: 2.5px; border: none;color: #636363;background-color: #636363; border-radius: 5px;'>
