@@ -53,31 +53,31 @@ class GenerativeAssets implements \JsonSerializable
     private $ipAddress;
 
     /**
-     * @ORM\Column(name="prompt", type="string", length=255, nullable=false)
+     * @ORM\Column(name="negative_prompt", type="string", length=255, nullable=false)
      * @var string
      */
     private $negativePrompt;
 
     /**
-     * @ORM\Column(name="lang", type="string", length=20, nullable=true)
+     * @ORM\Column(name="lang", type="string", length=2, nullable=true)
      * @var string
      */
     private $lang;
 
     /**
-     * @ORM\Column(name="ip_address", type="string", length=255, nullable=true)
+     * @ORM\Column(name="witdh", type="integer", length=4, nullable=true)
      * @var string
      */
     private $width;
 
     /**
-     * @ORM\Column(name="height", type="integer", nullable=true)
+     * @ORM\Column(name="height", type="integer", length=4, nullable=true)
      * @var integer
      */
     private $height;
 
     /**
-     * @ORM\Column(name="cfg_scale", type="float", nullable=true)
+     * @ORM\Column(name="cfg_scale", type="integer", nullable=true)
      * @var float
      */
     private $cfgScale;
