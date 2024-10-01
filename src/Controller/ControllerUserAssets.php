@@ -13,6 +13,7 @@ use Aws\S3\Exception\S3Exception;
 use Utils\Entity\GenerativeAssets;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
+use Utils\Entity\GenerativeAssetsDefault;
 
 class ControllerUserAssets
 {
@@ -651,8 +652,14 @@ class ControllerUserAssets
                 $name = array_key_exists('name', $_POST) ? htmlspecialchars($_POST['name']) : null;
                 $user = array_key_exists('user', $_POST) ? htmlspecialchars($_POST['user']) : null; 
                 $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
+                $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
                 $ipAddress = array_key_exists('ipAddress', $_POST) ? htmlspecialchars($_POST['ipAddress']) : null;
+                $width = array_key_exists('width', $_POST) ? htmlspecialchars($_POST['width']) : null;
+                $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
+                $cfgScale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
+                $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
 
+                $lng = $_COOKIE['lang'] ?? 'en';
                 if (!$name) {
                     return [
                         "success" => false,
@@ -682,9 +689,40 @@ class ControllerUserAssets
                 $generativeAsset->setCreatedAt($dateNow);
                 $generativeAsset->setPrompt($prompt);
                 $generativeAsset->setIpAddress($ipAddress);
+                $generativeAsset->setIsPublic(true);
+                $generativeAsset->setNegativePrompt($negativePrompt);
+                $generativeAsset->setLang($lng);
+                $generativeAsset->setWidth($width);
+                $generativeAsset->setHeight($height);
+                $generativeAsset->setCfgScale($cfgScale);
+                $generativeAsset->setLikes(0);
+                $generativeAsset->setModelName($modelName);
+
                 
                 $this->entityManager->persist($generativeAsset);
                 $this->entityManager->flush();
+            },
+            "get_default_generative_assets" => function () {
+                $generativeAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findAll();
+                return [
+                    "success" => true,
+                    "generativeAssets" => $generativeAssets,
+                ];
+            },
+            "get_my_generative_assets" => function () {
+                $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                $myGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user]);
+                return [
+                    "success" => true,
+                    "generativeAssets" => $myGenerativeAssets,
+                ];
+            },
+            "get_all_public_generative_assets" => function () {
+                $allPublicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true]);
+                return [
+                    "success" => true,
+                    "generativeAssets" => $allPublicGenerativeAssets,
+                ];
             },
         );
 
