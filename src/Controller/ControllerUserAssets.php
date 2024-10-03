@@ -792,7 +792,15 @@ class ControllerUserAssets
                 }
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                 $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                
                 $likes = $generativeAsset->getLikes();
+                if ($likes == 0) {
+                    return [
+                        "success" => false,
+                        "message" => "You can't have negative likes.",
+                    ];
+                }
+
                 $generativeAsset->setLikes($likes - 1);
                 $this->entityManager->persist($generativeAsset);
                 $this->entityManager->flush();
