@@ -783,6 +783,24 @@ class ControllerUserAssets
                     "likes" => $generativeAsset->getLikes(),
                 ];
             },
+            "decrement_like_generative_assets" => function () {
+                if (empty($_SESSION['id'])) {
+                    return [
+                        "success" => false,
+                        "message" => "You must be logged in to like a generative asset.",
+                    ];
+                }
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                $likes = $generativeAsset->getLikes();
+                $generativeAsset->setLikes($likes - 1);
+                $this->entityManager->persist($generativeAsset);
+                $this->entityManager->flush();
+                return [
+                    "success" => true,
+                    "likes" => $generativeAsset->getLikes(),
+                ];
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
