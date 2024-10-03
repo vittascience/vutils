@@ -101,6 +101,12 @@ class GenerativeAssets implements \JsonSerializable
      */
     private $modelName;
 
+    /**
+     * @ORM\Column(name="admin_review", type="boolean", nullable=true)
+     * @var boolean
+     */
+    private $adminReview;
+
 
     /**
      * @return Integer
@@ -267,6 +273,17 @@ class GenerativeAssets implements \JsonSerializable
         $this->modelName = $modelName;
         return $this;
     }
+
+    public function getAdminReview(): ?bool
+    {
+        return $this->adminReview;
+    }
+
+    public function setAdminReview(bool $adminReview): self
+    {
+        $this->adminReview = $adminReview;
+        return $this;
+    }
     
     public function jsonSerialize()
     {
@@ -284,7 +301,8 @@ class GenerativeAssets implements \JsonSerializable
             'cfgScale' => $this->cfgScale,
             'likes' => $this->likes,
             'isPublic' => $this->isPublic,
-            'modelName' => $this->modelName
+            'modelName' => $this->modelName,
+            'adminReview' => $this->adminReview
         ];
     }
 

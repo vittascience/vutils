@@ -700,6 +700,7 @@ class ControllerUserAssets
                 $generativeAsset->setCfgScale($cfgScale);
                 $generativeAsset->setLikes(0);
                 $generativeAsset->setModelName($modelName);
+                $generativeAsset->setAdminReview(true);
 
                 
                 $this->entityManager->persist($generativeAsset);
@@ -792,7 +793,7 @@ class ControllerUserAssets
                 }
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                 $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
-                
+
                 $likes = $generativeAsset->getLikes();
                 if ($likes == 0) {
                     return [
