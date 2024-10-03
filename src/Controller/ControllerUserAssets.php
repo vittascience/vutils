@@ -28,6 +28,8 @@ class ControllerUserAssets
     protected $whiteList;
     protected $clientS3;
     protected $bucket;
+    protected $bucketGenerativeAssets;
+    protected $bucketGenerativeAssetsEndpoint;
 
     public function __construct($entityManager, $user)
     {
@@ -37,6 +39,8 @@ class ControllerUserAssets
         $this->target = empty($_GET["target"]) ? null : htmlspecialchars($_GET["target"]);
         $this->entityManager = $entityManager;
         $this->user = $user;
+        $this->bucketGenerativeAssetsEndpoint = "https://vittai-generative-assets.s3.fr-par.scw.cloud";
+        $this->bucketGenerativeAssets = "vittai-generative-assets";
         $this->whiteList = ["adacraft", "ai-get", "ai-get-imgs"];
         $this->clientS3 = new S3Client([
             'credentials' => [
@@ -704,7 +708,7 @@ class ControllerUserAssets
             "get_one_default_generative_assets" => function () {
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                 $defaultGenerativeAsset = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
-                $assetsUrls[] = $this->getItemsFromScaleway($defaultGenerativeAsset->getName());
+                $assetsUrls[] = $this->getGenerativeAssetsFromScaleway($defaultGenerativeAsset->getName());
                 return [
                     "success" => true,
                     "assetsUrls" => $assetsUrls,
@@ -731,7 +735,7 @@ class ControllerUserAssets
                 $myGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user]);
                 $assetsUrls = [];
                 foreach ($myGenerativeAssets as $asset) {
-                    $assetsUrls[] = $this->getItemsFromScaleway($asset->getName());
+                    $assetsUrls[] = $this->getGenerativeAssetsFromScaleway($asset->getName());
                 }
                 return [
                     "success" => true,
@@ -741,7 +745,7 @@ class ControllerUserAssets
             "get_one_default_generative_assets" => function () {
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                 $defaultGenerativeAsset = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
-                $assetsUrls = $this->getItemsFromScaleway($defaultGenerativeAsset->getName());
+                $assetsUrls = $this->getGenerativeAssetsFromScaleway($defaultGenerativeAsset->getName());
                 return [
                     "success" => true,
                     "assetsUrls" => $assetsUrls,
@@ -754,7 +758,7 @@ class ControllerUserAssets
                 $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
                 $assetsUrls = [];
                 foreach ($publicGenerativeAssets as $asset) {
-                    $assetsUrls[] = $this->getItemsFromScaleway($asset->getName());
+                    $assetsUrls[] = $this->getGenerativeAssetsFromScaleway($asset->getName());
                 }
                 return [
                     "success" => true,
@@ -784,22 +788,13 @@ class ControllerUserAssets
         return call_user_func($this->actions[$action], $data);
     }
 
-    function getItemsFromScaleway(string $key) {
+    function getGenerativeAssetsFromScaleway(string $key) {
         // get all linked image with the user who start by the key
-        $existingImagesFromS3 = $this->listObjectsFromBucket($this->bucket, $key);
+        $existingImagesFromS3 = $this->listObjectsFromBucket($this->bucketGenerativeAssets, $key);
 
         if ($existingImagesFromS3 && !empty($existingImagesFromS3['Contents'])) {
             foreach ($existingImagesFromS3['Contents'] as $image) {
-                $cmd = $this->clientS3->getCommand('GetObject', [
-                    'Bucket' => $this->bucket,
-                    'Key' => $image['Key']
-                ]);
-                $request = $this->clientS3->createPresignedRequest($cmd, '+5 minutes');
-
-                $imagesToGet[] = [
-                    "key" => $image['Key'],
-                    "url" => (string) $request->getUri(),
-                ];
+                $imagesToGet[] = $this->bucketGenerativeAssetsEndpoint . '/' . $image['Key'];
             }
         }
         return $imagesToGet;
