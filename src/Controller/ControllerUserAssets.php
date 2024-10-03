@@ -58,7 +58,7 @@ class ControllerUserAssets
 
     public function action($action, $data = [])
     {
-        if ($action != 'generative_assets') {
+        if (!str_contains("generative_assets", $action)) {
             if (empty($this->user) && !in_array($action, $this->whiteList)) {
                 return [
                     "error" => "You must be logged in to access to this.",
@@ -669,23 +669,22 @@ class ControllerUserAssets
 
                 $dateNow = new \DateTime();
                 
+                $userCheck = null;
                 if ($user) {
                     $userRegular = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
                     if ($userRegular) {
-                        $user = $userRegular;
+                        $userCheck = $userRegular;
                     } else {
                         $nonRegularUser = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $user]);
                         if ($nonRegularUser) {
-                            $user = $nonRegularUser;
+                            $userCheck = $nonRegularUser;
                         }
                     }
-                } else {
-                    $user = null;
                 }
 
                 $generativeAsset = new GenerativeAssets();
                 $generativeAsset->setName($name);
-                $generativeAsset->setUser($user);
+                $generativeAsset->setUser($userCheck);
                 $generativeAsset->setCreatedAt($dateNow);
                 $generativeAsset->setPrompt($prompt);
                 $generativeAsset->setIpAddress($ipAddress);
@@ -703,30 +702,93 @@ class ControllerUserAssets
                 $this->entityManager->flush();
             },
             "get_default_generative_assets" => function () {
-                $generativeAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findAll();
+                $defaultGenerativeAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findAll();
+                $assetsUrls = [];
+                foreach ($defaultGenerativeAssets as $asset) {
+                    $assetsUrls[] = $this->getItemsFromScaleway($asset->getName());
+                }
                 return [
                     "success" => true,
-                    "generativeAssets" => $generativeAssets,
+                    "assetsUrls" => $assetsUrls,
                 ];
             },
             "get_my_generative_assets" => function () {
                 $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
                 $myGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user]);
+                $assetsUrls = [];
+                foreach ($myGenerativeAssets as $asset) {
+                    $assetsUrls[] = $this->getItemsFromScaleway($asset->getName());
+                }
                 return [
                     "success" => true,
-                    "generativeAssets" => $myGenerativeAssets,
+                    "assetsUrls" => $assetsUrls,
                 ];
             },
-            "get_all_public_generative_assets" => function () {
-                $allPublicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true]);
+            "get_one_default_generative_assets" => function () {
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                $defaultGenerativeAsset = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
+                $assetsUrls = $this->getItemsFromScaleway($defaultGenerativeAsset->getName());
                 return [
                     "success" => true,
-                    "generativeAssets" => $allPublicGenerativeAssets,
+                    "assetsUrls" => $assetsUrls,
+                ];
+            },
+            "get_public_generative_assets_per_page" => function () {
+                $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                $limit = 20;
+                $offset = ($page - 1) * $limit;
+                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                $assetsUrls = [];
+                foreach ($publicGenerativeAssets as $asset) {
+                    $assetsUrls[] = $this->getItemsFromScaleway($asset->getName());
+                }
+                return [
+                    "success" => true,
+                    "assetsUrls" => $assetsUrls,
+                ];
+            },
+            "increment_like_generative_assets" => function () {
+                if (empty($_SESSION['id'])) {
+                    return [
+                        "success" => false,
+                        "message" => "You must be logged in to like a generative asset.",
+                    ];
+                }
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                $likes = $generativeAsset->getLikes();
+                $generativeAsset->setLikes($likes + 1);
+                $this->entityManager->persist($generativeAsset);
+                $this->entityManager->flush();
+                return [
+                    "success" => true,
+                    "likes" => $generativeAsset->getLikes(),
                 ];
             },
         );
 
         return call_user_func($this->actions[$action], $data);
+    }
+
+    function getItemsFromScaleway(string $key) {
+        // get all linked image with the user who start by the key
+        $existingImagesFromS3 = $this->listObjectsFromBucket($this->bucket, $key);
+
+        if ($existingImagesFromS3 && !empty($existingImagesFromS3['Contents'])) {
+            foreach ($existingImagesFromS3['Contents'] as $image) {
+                $cmd = $this->clientS3->getCommand('GetObject', [
+                    'Bucket' => $this->bucket,
+                    'Key' => $image['Key']
+                ]);
+                $request = $this->clientS3->createPresignedRequest($cmd, '+5 minutes');
+
+                $imagesToGet[] = [
+                    "key" => $image['Key'],
+                    "url" => (string) $request->getUri(),
+                ];
+            }
+        }
+        return $imagesToGet;
     }
 
     private function checkKeyAndUser($key, $user)
