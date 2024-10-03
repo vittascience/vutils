@@ -701,15 +701,29 @@ class ControllerUserAssets
                 $this->entityManager->persist($generativeAsset);
                 $this->entityManager->flush();
             },
-            "get_default_generative_assets" => function () {
-                $defaultGenerativeAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findAll();
-                $assetsUrls = [];
-                foreach ($defaultGenerativeAssets as $asset) {
-                    $assetsUrls[] = $this->getItemsFromScaleway($asset->getName());
-                }
+            "get_one_default_generative_assets" => function () {
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                $defaultGenerativeAsset = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
+                $assetsUrls[] = $this->getItemsFromScaleway($defaultGenerativeAsset->getName());
                 return [
                     "success" => true,
                     "assetsUrls" => $assetsUrls,
+                ];
+            },
+            "get_list_default_generative_assets" => function () {
+                $defaultGenerativeAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findAll();
+                $projects = [];
+                foreach ($defaultGenerativeAssets as $asset) {
+                    $projects[] = [
+                        "id" => $asset->getId(),
+                        "name" => $asset->getName(),
+                        "description" => $asset->getDescription(),
+                        "image" => $asset->getImage(),
+                    ];
+                }
+                return [
+                    "success" => true,
+                    "projects" => $projects,
                 ];
             },
             "get_my_generative_assets" => function () {
