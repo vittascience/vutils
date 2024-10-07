@@ -3,15 +3,14 @@
 namespace Utils\Entity;
 
 
-use User\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
 
 /**
- * @ORM\Entity(repositoryClass="Utils\Repository\GenerativeAssetsRepository")
- * @ORM\Table(name="generative_assets")
+ * @ORM\Entity(repositoryClass="Utils\Repository\GenerativeAssetsDefaultRepository")
+ * @ORM\Table(name="generative_assets_default")
  */
-class GenerativeAssets implements \JsonSerializable
+class GenerativeAssetsDefault implements \JsonSerializable
 {
 
     /** 
@@ -22,14 +21,7 @@ class GenerativeAssets implements \JsonSerializable
     private $id;
 
     /**
-     * @ORM\ManyToOne(targetEntity="User\Entity\User")
-     * @ORM\JoinColumn(name="user_id", referencedColumnName="id", onDelete="CASCADE", nullable=true)
-     * @var User
-     */
-    private $user;
-
-    /**
-     * @ORM\Column(name="name", type="string", length=255, nullable=false)
+     * @ORM\Column(name="name", type="string", length=1000, nullable=false)
      * @var string
      */
     private $name;
@@ -47,12 +39,6 @@ class GenerativeAssets implements \JsonSerializable
     private $prompt;
 
     /**
-     * @ORM\Column(name="ip_address", type="string", length=255, nullable=true)
-     * @var string
-     */
-    private $ipAddress;
-
-    /**
      * @ORM\Column(name="negative_prompt", type="string", length=255, nullable=false)
      * @var string
      */
@@ -65,7 +51,7 @@ class GenerativeAssets implements \JsonSerializable
     private $lang;
 
     /**
-     * @ORM\Column(name="witdh", type="integer", length=4, nullable=true)
+     * @ORM\Column(name="width", type="integer", length=4, nullable=true)
      * @var string
      */
     private $width;
@@ -76,24 +62,13 @@ class GenerativeAssets implements \JsonSerializable
      */
     private $height;
 
+
     /**
      * @ORM\Column(name="cfg_scale", type="integer", nullable=true)
      * @var float
      */
     private $cfgScale;
 
-    /**
-     * @ORM\Column(name="likes", type="integer", nullable=true)
-     * @var integer
-     */
-    private $likes;
-
-
-    /**
-     * @ORM\Column(name="is_public", type="boolean", nullable=true)
-     * @var boolean
-     */
-    private $isPublic;
 
     /**
      * @ORM\Column(name="model_name", type="string", length=255, nullable=false)
@@ -102,36 +77,11 @@ class GenerativeAssets implements \JsonSerializable
     private $modelName;
 
     /**
-     * @ORM\Column(name="admin_review", type="boolean", nullable=true)
-     * @var boolean
-     */
-    private $adminReview;
-
-
-    /**
      * @return Integer
      */
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-     /**
-     * @return User
-     */
-    public function getUser(): ?User
-    {
-        return $this->user;
-    }
-
-    /**
-     * @param User $user
-     * @return User
-     */
-    public function setUser(?User $user): self
-    {
-        $this->user = $user;
-        return $this;
     }
 
     /**
@@ -144,7 +94,7 @@ class GenerativeAssets implements \JsonSerializable
 
     /**
      * @param string $name
-     * @return string
+     * @return self
      */
     public function setName(string $name): self
     {
@@ -172,17 +122,6 @@ class GenerativeAssets implements \JsonSerializable
     public function setPrompt(string $prompt): self
     {
         $this->prompt = $prompt;
-        return $this;
-    }
-
-    public function getIpAddress(): ?string
-    {
-        return $this->ipAddress;
-    }
-
-    public function setIpAddress(string $ipAddress): self
-    {
-        $this->ipAddress = $ipAddress;
         return $this;
     }
 
@@ -241,28 +180,6 @@ class GenerativeAssets implements \JsonSerializable
         return $this;
     }
 
-    public function getLikes(): ?int
-    {
-        return $this->likes;
-    }
-
-    public function setLikes(int $likes): self
-    {
-        $this->likes = $likes;
-        return $this;
-    }
-
-    public function getIsPublic(): ?bool
-    {
-        return $this->isPublic;
-    }
-
-    public function setIsPublic(bool $isPublic): self
-    {
-        $this->isPublic = $isPublic;
-        return $this;
-    }
-
     public function getModelName(): ?string
     {
         return $this->modelName;
@@ -274,35 +191,20 @@ class GenerativeAssets implements \JsonSerializable
         return $this;
     }
 
-    public function getAdminReview(): ?bool
-    {
-        return $this->adminReview;
-    }
-
-    public function setAdminReview(bool $adminReview): self
-    {
-        $this->adminReview = $adminReview;
-        return $this;
-    }
     
     public function jsonSerialize()
     {
         return [
             'id' => $this->id,
-            'user' => $this->user,
             'imageName' => $this->name,
             'createdAt' => $this->createdAt,
             'prompt' => $this->prompt,
-            'ipAddress' => $this->ipAddress,
             'negativePrompt' => $this->negativePrompt,
             'lang' => $this->lang,
             'width' => $this->width,
             'height' => $this->height,
             'cfgScale' => $this->cfgScale,
-            'likes' => $this->likes,
-            'isPublic' => $this->isPublic,
-            'modelName' => $this->modelName,
-            'adminReview' => $this->adminReview
+            'modelName' => $this->modelName
         ];
     }
 
