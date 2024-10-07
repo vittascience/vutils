@@ -51,7 +51,7 @@ class GenerativeAssetsDefault implements \JsonSerializable
     private $lang;
 
     /**
-     * @ORM\Column(name="witdh", type="integer", length=4, nullable=true)
+     * @ORM\Column(name="width", type="integer", length=4, nullable=true)
      * @var string
      */
     private $width;
@@ -62,13 +62,19 @@ class GenerativeAssetsDefault implements \JsonSerializable
      */
     private $height;
 
+
     /**
-     * @ORM\Column(name="likes", type="integer", nullable=true)
-     * @var integer
+     * @ORM\Column(name="cfg_scale", type="integer", nullable=true)
+     * @var float
      */
-    private $likes;
+    private $cfgScale;
 
 
+    /**
+     * @ORM\Column(name="model_name", type="string", length=255, nullable=false)
+     * @var string
+     */
+    private $modelName;
 
     /**
      * @return Integer
@@ -163,14 +169,25 @@ class GenerativeAssetsDefault implements \JsonSerializable
         return $this;
     }
 
-    public function getLikes(): ?int
+    public function getCfgScale(): ?float
     {
-        return $this->likes;
+        return $this->cfgScale;
     }
 
-    public function setLikes(int $likes): self
+    public function setCfgScale(float $cfgScale): self
     {
-        $this->likes = $likes;
+        $this->cfgScale = $cfgScale;
+        return $this;
+    }
+
+    public function getModelName(): ?string
+    {
+        return $this->modelName;
+    }
+
+    public function setModelName(string $modelName): self
+    {
+        $this->modelName = $modelName;
         return $this;
     }
 
@@ -186,7 +203,8 @@ class GenerativeAssetsDefault implements \JsonSerializable
             'lang' => $this->lang,
             'width' => $this->width,
             'height' => $this->height,
-            'likes' => $this->likes,
+            'cfgScale' => $this->cfgScale,
+            'modelName' => $this->modelName
         ];
     }
 
