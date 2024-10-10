@@ -62,11 +62,6 @@ class ControllerUserAssets
 
     public function action($action, $data = [])
     {
-        if (empty($this->user) && !in_array($action, $this->whiteList)) {
-            return [
-                "error" => "You must be logged in to access to this.",
-            ];
-        }
         $this->actions = array(
             'adacraft' => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT" || $_SERVER['REQUEST_METHOD'] == "POST") {
@@ -704,6 +699,11 @@ class ControllerUserAssets
                     
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
+
+                    return [
+                        "success" => true,
+                        "message" => "generative_asset_created",
+                    ];
                 } catch (Exception $e) {
                     return [
                         "success" => false,
@@ -811,6 +811,14 @@ class ControllerUserAssets
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                     $defaultGenerativeAsset = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
+                    
+                    if (!$defaultGenerativeAsset) {
+                        return [
+                            "success" => false,
+                            "message" => "not_found",
+                        ];
+                    }
+
                     $imgUrls = [];
                     $arrayUrl = json_decode($defaultGenerativeAsset->getName());
                     foreach ($arrayUrl as $url) {
@@ -836,6 +844,45 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "get_one_creator_generative_assets" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                    $creatorAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id, 'isPublic' => true]);
+                    
+                    if (!$creatorAssets) {
+                        return [
+                            "success" => false,
+                            "message" => "not_found",
+                        ];
+                    }
+                    
+                    $assetsUrls = [];
+                    foreach ($creatorAssets as $asset) {
+                        $assetsUrls[] = [   
+                            "id" => $asset->getId(), 
+                            "url" => $this->bucketGenerativeAssetsEndpoint.$asset->getName(), 
+                            "likes" => $asset->getLikes(),
+                            "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                            "prompt" => $asset->getPrompt(),
+                            "negativePrompt" => $asset->getNegativePrompt(),
+                            "width" => (int)$asset->getWidth(),
+                            "height" => (int)$asset->getHeight(),
+                            "cfgScale" => $asset->getCfgScale(),
+                            "modelName" => $asset->getModelName(),
+                        ];
+                    }
+
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
             "get_public_generative_assets_per_page" => function () {
                 try {
                     $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
@@ -849,12 +896,17 @@ class ControllerUserAssets
                                 continue;
                             }
                         } else {
+                            $creator = [];
                             if ($asset->getUser() != null) {
-                                $creatorFirstname = $asset->getUser()->getFirstName();
-                                $creatorSurname = $asset->getUser()->getSurname();
+                                $creator['id'] = $asset->getUser()->getId();
+                                $creator['firstname'] = $asset->getUser()->getFirstName();
+                                $creator['surname'] = $asset->getUser()->getSurname();
+                                $creator['picture'] = $asset->getUser()->getPicture();
+
                             } else {
-                                $creatorFirstname = "Anonymous";
-                                $creatorSurname = "Anonymous";
+                                $creator['id'] = null;
+                                $creator['firstname'] = "Anonymous";
+                                $creator['surname'] = "Anonymous";
                             }
         
                             $assetsUrls[] = [   
@@ -868,8 +920,7 @@ class ControllerUserAssets
                                 "height" => (int)$asset->getHeight(),
                                 "cfgScale" => $asset->getCfgScale(),
                                 "modelName" => $asset->getModelName(),
-                                "creatorFirstname" => $creatorFirstname,
-                                "creatorSurname" => $creatorSurname,
+                                "creator" => $creator,
                             ];
                         }
                     }
@@ -885,12 +936,6 @@ class ControllerUserAssets
                 }
             },
             "increment_like_generative_assets" => function () {
-                if (empty($_SESSION['id'])) {
-                    return [
-                        "success" => false,
-                        "message" => "You must be logged in to like a generative asset.",
-                    ];
-                }
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                 $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
                 $likes = $generativeAsset->getLikes();
@@ -903,12 +948,6 @@ class ControllerUserAssets
                 ];
             },
             "decrement_like_generative_assets" => function () {
-                if (empty($_SESSION['id'])) {
-                    return [
-                        "success" => false,
-                        "message" => "You must be logged in to like a generative asset.",
-                    ];
-                }
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                 $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
 
