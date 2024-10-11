@@ -847,15 +847,25 @@ class ControllerUserAssets
             "get_one_creator_generative_assets" => function () {
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
-                    $creatorAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id, 'isPublic' => true]);
-                    
+
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $id]);
+                    if (!$user) {
+                        return [
+                            "success" => false,
+                            "message" => "user_not_found",
+                        ];
+                    }
+
+
+                    $creatorAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user, 'isPublic' => true]);
+
                     if (!$creatorAssets) {
                         return [
                             "success" => false,
                             "message" => "not_found",
                         ];
                     }
-                    
+
                     $assetsUrls = [];
                     foreach ($creatorAssets as $asset) {
                         $assetsUrls[] = [   
@@ -889,41 +899,7 @@ class ControllerUserAssets
                     $limit = 20;
                     $offset = ($page - 1) * $limit;
                     $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
-                    $assetsUrls = [];
-                    foreach ($publicGenerativeAssets as $asset) {
-                        if ($asset->getUser() != null && $asset->getUser()->getId() == $_SESSION['id']) {
-                            if ($asset->getUser()->getId() == $_SESSION['id']) {
-                                continue;
-                            }
-                        } else {
-                            $creator = [];
-                            if ($asset->getUser() != null) {
-                                $creator['id'] = $asset->getUser()->getId();
-                                $creator['firstname'] = $asset->getUser()->getFirstName();
-                                $creator['surname'] = $asset->getUser()->getSurname();
-                                $creator['picture'] = $asset->getUser()->getPicture();
-
-                            } else {
-                                $creator['id'] = null;
-                                $creator['firstname'] = "Anonymous";
-                                $creator['surname'] = "Anonymous";
-                            }
-        
-                            $assetsUrls[] = [   
-                                "id" => $asset->getId(), 
-                                "url" => $this->bucketGenerativeAssetsEndpoint.$asset->getName(), 
-                                "likes" => $asset->getLikes(),
-                                "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
-                                "prompt" => $asset->getPrompt(),
-                                "negativePrompt" => $asset->getNegativePrompt(),
-                                "width" => (int)$asset->getWidth(),
-                                "height" => (int)$asset->getHeight(),
-                                "cfgScale" => $asset->getCfgScale(),
-                                "modelName" => $asset->getModelName(),
-                                "creator" => $creator,
-                            ];
-                        }
-                    }
+                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, false);
                     return [
                         "success" => true,
                         "assets" => $assetsUrls,
@@ -967,6 +943,29 @@ class ControllerUserAssets
                     "likes" => $generativeAsset->getLikes(),
                 ];
             },
+            "get_list_of_non_reviewed_generative_assets" => function() {
+                $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                $limit = 20;
+                $offset = ($page - 1) * $limit;
+
+                $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => false], ['createdAt' => 'DESC'], $limit, $offset);
+                $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                return [
+                    "success" => true,
+                    "assets" => $assetsUrls,
+                ];
+            },
+            "get_list_of_all_generative_assets" => function() {
+                $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                $limit = 20;
+                $offset = ($page - 1) * $limit;
+                $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                return [
+                    "success" => true,
+                    "assets" => $assetsUrls,
+                ];
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
@@ -982,6 +981,41 @@ class ControllerUserAssets
             }
         }
         return $imagesToGet;
+    }
+
+    function manageGenerativeAssets(array $generativeAssets = [], bool $includeMine = false) {
+        foreach ($generativeAssets as $asset) {
+            if ($asset->getIsPublic() == false && $includeMine == false) {
+                continue;
+            }
+            $creator = [];
+            if ($asset->getUser() != null) {
+                $creator['id'] = $asset->getUser()->getId();
+                $creator['firstname'] = $asset->getUser()->getFirstName();
+                $creator['surname'] = $asset->getUser()->getSurname();
+                $creator['picture'] = $asset->getUser()->getPicture();
+
+            } else {
+                $creator['id'] = null;
+                $creator['firstname'] = "Anonymous";
+                $creator['surname'] = "Anonymous";
+            }
+
+            $assetsUrls[] = [   
+                "id" => $asset->getId(), 
+                "url" => $this->bucketGenerativeAssetsEndpoint.$asset->getName(), 
+                "likes" => $asset->getLikes(),
+                "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                "prompt" => $asset->getPrompt(),
+                "negativePrompt" => $asset->getNegativePrompt(),
+                "width" => (int)$asset->getWidth(),
+                "height" => (int)$asset->getHeight(),
+                "cfgScale" => $asset->getCfgScale(),
+                "modelName" => $asset->getModelName(),
+                "creator" => $creator,
+            ];
+        }
+        return $assetsUrls;
     }
 
     private function checkKeyAndUser($key, $user)
