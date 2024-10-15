@@ -966,6 +966,20 @@ class ControllerUserAssets
                     "assets" => $assetsUrls,
                 ];
             },
+            "get_generative_assets_length" => function () {
+                try {
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true]);
+                    return [
+                        "success" => true,
+                        "length" => count($publicGenerativeAssets)
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
