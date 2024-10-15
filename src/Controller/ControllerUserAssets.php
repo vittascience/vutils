@@ -7,6 +7,7 @@ use Aws\S3\S3Client;
 use User\Entity\User;
 use GuzzleHttp\Client;
 use OpenStack\OpenStack;
+use User\Entity\Regular;
 use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
@@ -1013,6 +1014,13 @@ class ControllerUserAssets
                 }
             },
             "update_validation_for_generative_asset" => function () {
+                $Autorisation = $this->entityManager->getRepository(Regular::class)->findOneBy(['user' => htmlspecialchars($_SESSION['id'])]);
+                if ($Autorisation->isAdmin() == 0) {
+                    return [
+                        "success" => false,
+                        "message" => "not_allowed",
+                    ];
+                }
                 $content = file_get_contents("php://input");
                 $content = json_decode($content, true);
                 $id = array_key_exists('id', $content) ? htmlspecialchars($content['id']) : null;
