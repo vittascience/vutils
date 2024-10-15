@@ -1033,6 +1033,20 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "get_reviewed_generative_assets_length" => function () {
+                try {
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true]);
+                    return [
+                        "success" => true,
+                        "length" => count($publicGenerativeAssets)
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
