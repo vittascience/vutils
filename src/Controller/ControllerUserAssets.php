@@ -944,27 +944,45 @@ class ControllerUserAssets
                 ];
             },
             "get_list_of_non_reviewed_generative_assets" => function() {
-                $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                // get fetch data 
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $page = array_key_exists('page', $content) ? htmlspecialchars($content['page']) : null;
                 $limit = 20;
                 $offset = ($page - 1) * $limit;
-
-                $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => false], ['createdAt' => 'DESC'], $limit, $offset);
-                $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
-                return [
-                    "success" => true,
-                    "assets" => $assetsUrls,
-                ];
+                try {
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => false], ['createdAt' => 'DESC'], $limit, $offset);
+                    $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
             },
             "get_list_of_all_generative_assets" => function() {
-                $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $page = array_key_exists('page', $content) ? htmlspecialchars($content['page']) : null;
                 $limit = 20;
                 $offset = ($page - 1) * $limit;
-                $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true], ['createdAt' => 'DESC'], $limit, $offset);
-                $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
-                return [
-                    "success" => true,
-                    "assets" => $assetsUrls,
-                ];
+                try {
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                    $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
             },
             "get_generative_assets_length" => function () {
                 try {
