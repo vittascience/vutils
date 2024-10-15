@@ -964,6 +964,20 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "get_total_page_of_non_reviewed_generative_assets" => function() {
+                try {
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => false]);
+                    return [
+                        "success" => true,
+                        "totalPages" => count($generativeAssets),
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
             "get_list_of_all_generative_assets" => function() {
                 $content = file_get_contents("php://input");
                 $content = json_decode($content, true);
@@ -990,6 +1004,27 @@ class ControllerUserAssets
                     return [
                         "success" => true,
                         "length" => count($publicGenerativeAssets)
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "update_validation_for_generative_asset" => function () {
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $id = array_key_exists('id', $content) ? htmlspecialchars($content['id']) : null;
+                $is_validated = array_key_exists('is_validated', $content) ? htmlspecialchars($content['is_validated']) : null;
+                try {
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                    $generativeAsset->setAdminReview($is_validated);
+                    $this->entityManager->persist($generativeAsset);
+                    $this->entityManager->flush();
+                    return [
+                        "success" => true,
+                        "message" => "updated",
                     ];
                 } catch (Exception $e) {
                     return [
