@@ -983,10 +983,13 @@ class ControllerUserAssets
                 $content = file_get_contents("php://input");
                 $content = json_decode($content, true);
                 $page = array_key_exists('page', $content) ? htmlspecialchars($content['page']) : null;
+                $isPublic = array_key_exists('isPublic', $content) ? htmlspecialchars($content['isPublic']) : false;
                 $limit = 20;
                 $offset = ($page - 1) * $limit;
+                $boolIsPublic = $isPublic == 1 ? true : false;
+
                 try {
-                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true, 'isPublic' => $boolIsPublic], ['createdAt' => 'DESC'], $limit, $offset);
                     $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
                     return [
                         "success" => true,
@@ -1024,10 +1027,13 @@ class ControllerUserAssets
                 $content = file_get_contents("php://input");
                 $content = json_decode($content, true);
                 $id = array_key_exists('id', $content) ? htmlspecialchars($content['id']) : null;
+                $isPublic = array_key_exists('is_public', $content) ? htmlspecialchars($content['is_public']) : false;
                 $is_validated = array_key_exists('is_validated', $content) ? htmlspecialchars($content['is_validated']) : null;
+                $boolIsPublic = $isPublic == 1 ? true : false;
                 try {
                     $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
                     $generativeAsset->setAdminReview($is_validated);
+                    $generativeAsset->setIsPublic($boolIsPublic);
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
                     return [
@@ -1042,8 +1048,12 @@ class ControllerUserAssets
                 }
             },
             "get_reviewed_generative_assets_length" => function () {
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $isPublic = array_key_exists('is_public', $content) ? htmlspecialchars($content['is_public']) : false;
+                $boolIsPublic = $isPublic == 1 ? true : false;
                 try {
-                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true]);
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true, 'isPublic' => $boolIsPublic]);
                     return [
                         "success" => true,
                         "length" => count($publicGenerativeAssets)
