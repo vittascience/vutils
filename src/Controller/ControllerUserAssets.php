@@ -687,7 +687,7 @@ class ControllerUserAssets
                     $generativeAsset->setCreatedAt($dateNow);
                     $generativeAsset->setPrompt($prompt);
                     $generativeAsset->setIpAddress($ipAddress);
-                    $generativeAsset->setIsPublic(true);
+                    $generativeAsset->setIsPublic(false);
                     $generativeAsset->setNegativePrompt($negativePrompt);
                     $generativeAsset->setLang($lng);
                     $generativeAsset->setWidth($width);
@@ -695,7 +695,7 @@ class ControllerUserAssets
                     $generativeAsset->setCfgScale($cfgScale);
                     $generativeAsset->setLikes(0);
                     $generativeAsset->setModelName($modelName);
-                    $generativeAsset->setAdminReview(true);
+                    $generativeAsset->setAdminReview(false);
     
                     
                     $this->entityManager->persist($generativeAsset);
