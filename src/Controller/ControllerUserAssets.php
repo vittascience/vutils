@@ -1018,7 +1018,7 @@ class ControllerUserAssets
             },
             "update_validation_for_generative_asset" => function () {
                 $Autorisation = $this->entityManager->getRepository(Regular::class)->findOneBy(['user' => htmlspecialchars($_SESSION['id'])]);
-                if ($Autorisation->isAdmin() == 0) {
+                if ($Autorisation->getIsAdmin() == 0) {
                     return [
                         "success" => false,
                         "message" => "not_allowed",
@@ -1029,10 +1029,12 @@ class ControllerUserAssets
                 $id = array_key_exists('id', $content) ? htmlspecialchars($content['id']) : null;
                 $isPublic = array_key_exists('is_public', $content) ? htmlspecialchars($content['is_public']) : false;
                 $is_validated = array_key_exists('is_validated', $content) ? htmlspecialchars($content['is_validated']) : null;
+                $boolIsValidated = $is_validated == 1 ? true : false;
                 $boolIsPublic = $isPublic == 1 ? true : false;
+
                 try {
                     $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
-                    $generativeAsset->setAdminReview($is_validated);
+                    $generativeAsset->setAdminReview($boolIsValidated);
                     $generativeAsset->setIsPublic($boolIsPublic);
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
