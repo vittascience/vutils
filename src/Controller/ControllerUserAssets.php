@@ -666,7 +666,7 @@ class ControllerUserAssets
                         ];
                     }
     
-                    $dateNow = new \DateTime();
+                    $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
                     
                     $userCheck = null;
                     if (!empty($user)) {
