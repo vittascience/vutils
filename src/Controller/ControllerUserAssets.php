@@ -7,12 +7,14 @@ use Aws\S3\S3Client;
 use User\Entity\User;
 use GuzzleHttp\Client;
 use OpenStack\OpenStack;
+use User\Entity\Regular;
 use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
 use Utils\Entity\GenerativeAssets;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
+use Utils\Entity\GenerativeAssetsDefault;
 
 class ControllerUserAssets
 {
@@ -27,6 +29,8 @@ class ControllerUserAssets
     protected $whiteList;
     protected $clientS3;
     protected $bucket;
+    protected $bucketGenerativeAssets;
+    protected $bucketGenerativeAssetsEndpoint;
 
     public function __construct($entityManager, $user)
     {
@@ -36,7 +40,9 @@ class ControllerUserAssets
         $this->target = empty($_GET["target"]) ? null : htmlspecialchars($_GET["target"]);
         $this->entityManager = $entityManager;
         $this->user = $user;
-        $this->whiteList = ["adacraft", "ai-get", "ai-get-imgs"];
+        $this->bucketGenerativeAssetsEndpoint = "https://vittai-generative-assets.s3.fr-par.scw.cloud/";
+        $this->bucketGenerativeAssets = "vittai-generative-assets";
+        $this->whiteList = ["adacraft", "ai-get", "ai-get-imgs", "ai-get-sounds", "get_one_generative_assets", "get_list_default_generative_assets", "get_my_generative_assets", "get_one_default_generative_assets", "get_public_generative_assets_per_page"];
         $this->clientS3 = new S3Client([
             'credentials' => [
                 'key' => $_ENV['VS_S3_KEY'],
@@ -57,13 +63,6 @@ class ControllerUserAssets
 
     public function action($action, $data = [])
     {
-        if ($action != 'generative_assets') {
-            if (empty($this->user) && !in_array($action, $this->whiteList)) {
-                return [
-                    "error" => "You must be logged in to access to this.",
-                ];
-            }
-        }
         $this->actions = array(
             'adacraft' => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "PUT" || $_SERVER['REQUEST_METHOD'] == "POST") {
@@ -648,47 +647,474 @@ class ControllerUserAssets
                 UtilsAssetsTrait::duplicateAssets($this->entityManager, []);
             },
             "generative_assets" => function () {
-                $name = array_key_exists('name', $_POST) ? htmlspecialchars($_POST['name']) : null;
-                $user = array_key_exists('user', $_POST) ? htmlspecialchars($_POST['user']) : null; 
-                $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
-                $ipAddress = array_key_exists('ipAddress', $_POST) ? htmlspecialchars($_POST['ipAddress']) : null;
+                try {
+                    $name = array_key_exists('name', $_POST) ? htmlspecialchars($_POST['name']) : null;
+                    $user = array_key_exists('user', $_POST) ? (int)htmlspecialchars($_POST['user']) : null; 
+                    $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
+                    $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
+                    $ipAddress = array_key_exists('ipAddress', $_POST) ? htmlspecialchars($_POST['ipAddress']) : null;
+                    $width = array_key_exists('width', $_POST) ? htmlspecialchars($_POST['width']) : null;
+                    $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
+                    $cfgScale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
+                    $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
+    
+                    $lng = $_COOKIE['lang'] ?? 'en';
+                    if (!$name) {
+                        return [
+                            "success" => false,
+                            "message" => "No name provided",
+                        ];
+                    }
+    
+                    $dateNow = new \DateTime();
+                    
+                    $userCheck = null;
+                    if (!empty($user)) {
+                        $userBase = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $user]);
+                        if ($userBase) {
+                            $userCheck = $userBase;
+                        } else {
+                            $RegularUser = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $user]);
+                            if ($RegularUser) {
+                                $userCheck = $RegularUser;
+                            }
+                        }
+                    }
+    
+                    $generativeAsset = new GenerativeAssets();
+                    $generativeAsset->setName($name);
+                    $generativeAsset->setUser($userCheck);
+                    $generativeAsset->setCreatedAt($dateNow);
+                    $generativeAsset->setPrompt($prompt);
+                    $generativeAsset->setIpAddress($ipAddress);
+                    $generativeAsset->setIsPublic(true);
+                    $generativeAsset->setNegativePrompt($negativePrompt);
+                    $generativeAsset->setLang($lng);
+                    $generativeAsset->setWidth($width);
+                    $generativeAsset->setHeight($height);
+                    $generativeAsset->setCfgScale($cfgScale);
+                    $generativeAsset->setLikes(0);
+                    $generativeAsset->setModelName($modelName);
+                    $generativeAsset->setAdminReview(true);
+    
+                    
+                    $this->entityManager->persist($generativeAsset);
+                    $this->entityManager->flush();
 
-                if (!$name) {
+                    return [
+                        "success" => true,
+                        "message" => "generative_asset_created",
+                    ];
+                } catch (Exception $e) {
                     return [
                         "success" => false,
-                        "message" => "No name provided",
+                        "message" => $e->getMessage(),
                     ];
                 }
 
-                $dateNow = new \DateTime();
-                
-                if ($user) {
-                    $userRegular = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    if ($userRegular) {
-                        $user = $userRegular;
-                    } else {
-                        $nonRegularUser = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $user]);
-                        if ($nonRegularUser) {
-                            $user = $nonRegularUser;
-                        }
+            },
+            "get_one_generative_assets" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                    $assets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
+                    if ($assets->getIspublic() == false || $assets->getUser() != null && $assets->getUser()->getId() != $_SESSION['id']) {
+                        return [
+                            "success" => false,
+                            "message" => "not_allowed",
+                        ];
                     }
-                } else {
-                    $user = null;
+    
+                    $assetsData = [
+                        "id" => $assets->getId(),
+                        "url" => $this->bucketGenerativeAssetsEndpoint.$assets->getName(),
+                        "prompt" => $assets->getPrompt(),
+                        "negativePrompt" => $assets->getNegativePrompt(),
+                        "width" => $assets->getWidth(),
+                        "height" => $assets->getHeight(),
+                        "cfgScale" => $assets->getCfgScale(),
+                        "modelName" => $assets->getModelName(),
+                    ];
+                    return [
+                        "success" => true,
+                        "assets" => $assetsData,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
                 }
+            },
+            "get_list_default_generative_assets" => function () {
+                try {
+                    $defaultGenerativeAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findAll();
+                    $projects = [];
+                    foreach ($defaultGenerativeAssets as $asset) {
+                        $imgUrls = [];
+                        $arrayUrl = json_decode($asset->getName());
+                        foreach ($arrayUrl as $url) {
+                            $imgUrls[] = $url;
+                        }
+                        $projects[] = [
+                            "id" => $asset->getId(),
+                            "prompt" => $asset->getPrompt(),
+                            "negativePrompt" => $asset->getNegativePrompt(),
+                            "width" => $asset->getWidth(),
+                            "height" => $asset->getHeight(),
+                            "cfgScale" => $asset->getCfgScale(),
+                            "modelName" => $asset->getModelName(),
+                            "urls" => $imgUrls,
+                        ];
+                    }
+    
+                    return [
+                        "success" => true,
+                        "projects" => $projects,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_my_generative_assets" => function () {
+                try {
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $myGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user]);
+                    $assetsUrls = [];
+                    foreach ($myGenerativeAssets as $asset) {
+                        $assetsUrls[] = [   
+                            "id" => $asset->getId(), 
+                            "url" => $this->bucketGenerativeAssetsEndpoint.$asset->getName(), 
+                            "likes" => $asset->getLikes(),
+                            "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                            "prompt" => $asset->getPrompt(),
+                            "negativePrompt" => $asset->getNegativePrompt(),
+                            "width" => $asset->getWidth(),
+                            "height" => $asset->getHeight(),
+                            "cfgScale" => $asset->getCfgScale(),
+                            "modelName" => $asset->getModelName(),
+                        ];
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_one_default_generative_assets" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                    $defaultGenerativeAsset = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
+                    
+                    if (!$defaultGenerativeAsset) {
+                        return [
+                            "success" => false,
+                            "message" => "not_found",
+                        ];
+                    }
 
-                $generativeAsset = new GenerativeAssets();
-                $generativeAsset->setName($name);
-                $generativeAsset->setUser($user);
-                $generativeAsset->setCreatedAt($dateNow);
-                $generativeAsset->setPrompt($prompt);
-                $generativeAsset->setIpAddress($ipAddress);
-                
+                    $imgUrls = [];
+                    $arrayUrl = json_decode($defaultGenerativeAsset->getName());
+                    foreach ($arrayUrl as $url) {
+                        $imgUrls[] = $this->bucketGenerativeAssetsEndpoint.$url;
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => [
+                            "id" => $defaultGenerativeAsset->getId(),
+                            "urls" => $imgUrls,
+                            "prompt" => $defaultGenerativeAsset->getPrompt(),
+                            "negativePrompt" => $defaultGenerativeAsset->getNegativePrompt(),
+                            "width" => $defaultGenerativeAsset->getWidth(),
+                            "height" => $defaultGenerativeAsset->getHeight(),
+                            "cfgScale" => $defaultGenerativeAsset->getCfgScale(),
+                            "modelName" => $defaultGenerativeAsset->getModelName(),
+                        ],
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_one_creator_generative_assets" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $id]);
+                    if (!$user) {
+                        return [
+                            "success" => false,
+                            "message" => "user_not_found",
+                        ];
+                    }
+
+
+                    $creatorAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user, 'isPublic' => true]);
+
+                    if (!$creatorAssets) {
+                        return [
+                            "success" => false,
+                            "message" => "not_found",
+                        ];
+                    }
+
+                    $assetsUrls = [];
+                    foreach ($creatorAssets as $asset) {
+                        $assetsUrls[] = [   
+                            "id" => $asset->getId(), 
+                            "url" => $this->bucketGenerativeAssetsEndpoint.$asset->getName(), 
+                            "likes" => $asset->getLikes(),
+                            "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                            "prompt" => $asset->getPrompt(),
+                            "negativePrompt" => $asset->getNegativePrompt(),
+                            "width" => (int)$asset->getWidth(),
+                            "height" => (int)$asset->getHeight(),
+                            "cfgScale" => $asset->getCfgScale(),
+                            "modelName" => $asset->getModelName(),
+                        ];
+                    }
+
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_public_generative_assets_per_page" => function () {
+                try {
+                    $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                    $limit = 20;
+                    $offset = ($page - 1) * $limit;
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, false);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "increment_like_generative_assets" => function () {
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                $likes = $generativeAsset->getLikes();
+                $generativeAsset->setLikes($likes + 1);
                 $this->entityManager->persist($generativeAsset);
                 $this->entityManager->flush();
+                return [
+                    "success" => true,
+                    "likes" => $generativeAsset->getLikes(),
+                ];
+            },
+            "decrement_like_generative_assets" => function () {
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+
+                $likes = $generativeAsset->getLikes();
+                if ($likes == 0) {
+                    return [
+                        "success" => false,
+                        "message" => "You can't have negative likes.",
+                    ];
+                }
+
+                $generativeAsset->setLikes($likes - 1);
+                $this->entityManager->persist($generativeAsset);
+                $this->entityManager->flush();
+                return [
+                    "success" => true,
+                    "likes" => $generativeAsset->getLikes(),
+                ];
+            },
+            "get_list_of_non_reviewed_generative_assets" => function() {
+                // get fetch data 
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $page = array_key_exists('page', $content) ? htmlspecialchars($content['page']) : null;
+                $limit = 20;
+                $offset = ($page - 1) * $limit;
+                try {
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => false], ['createdAt' => 'DESC'], $limit, $offset);
+                    $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_total_page_of_non_reviewed_generative_assets" => function() {
+                try {
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => false]);
+                    return [
+                        "success" => true,
+                        "totalPages" => count($generativeAssets),
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_list_of_all_generative_assets" => function() {
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $page = array_key_exists('page', $content) ? htmlspecialchars($content['page']) : null;
+                $isPublic = array_key_exists('isPublic', $content) ? htmlspecialchars($content['isPublic']) : false;
+                $limit = 20;
+                $offset = ($page - 1) * $limit;
+                $boolIsPublic = $isPublic == 1 ? true : false;
+
+                try {
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true, 'isPublic' => $boolIsPublic], ['createdAt' => 'DESC'], $limit, $offset);
+                    $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_generative_assets_length" => function () {
+                try {
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true]);
+                    return [
+                        "success" => true,
+                        "length" => count($publicGenerativeAssets)
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "update_validation_for_generative_asset" => function () {
+                $Autorisation = $this->entityManager->getRepository(Regular::class)->findOneBy(['user' => htmlspecialchars($_SESSION['id'])]);
+                if ($Autorisation->isAdmin() == 0) {
+                    return [
+                        "success" => false,
+                        "message" => "not_allowed",
+                    ];
+                }
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $id = array_key_exists('id', $content) ? htmlspecialchars($content['id']) : null;
+                $isPublic = array_key_exists('is_public', $content) ? htmlspecialchars($content['is_public']) : false;
+                $is_validated = array_key_exists('is_validated', $content) ? htmlspecialchars($content['is_validated']) : null;
+                $boolIsPublic = $isPublic == 1 ? true : false;
+                try {
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                    $generativeAsset->setAdminReview($is_validated);
+                    $generativeAsset->setIsPublic($boolIsPublic);
+                    $this->entityManager->persist($generativeAsset);
+                    $this->entityManager->flush();
+                    return [
+                        "success" => true,
+                        "message" => "updated",
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_reviewed_generative_assets_length" => function () {
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $isPublic = array_key_exists('is_public', $content) ? htmlspecialchars($content['is_public']) : false;
+                $boolIsPublic = $isPublic == 1 ? true : false;
+                try {
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true, 'isPublic' => $boolIsPublic]);
+                    return [
+                        "success" => true,
+                        "length" => count($publicGenerativeAssets)
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
             },
         );
 
         return call_user_func($this->actions[$action], $data);
+    }
+
+    function getGenerativeAssetsFromScaleway(string $key) {
+        // get all linked image with the user who start by the key
+        $existingImagesFromS3 = $this->listObjectsFromBucket($this->bucketGenerativeAssets, $key);
+
+        if ($existingImagesFromS3 && !empty($existingImagesFromS3['Contents'])) {
+            foreach ($existingImagesFromS3['Contents'] as $image) {
+                $imagesToGet[] = $this->bucketGenerativeAssetsEndpoint . '/' . $image['Key'];
+            }
+        }
+        return $imagesToGet;
+    }
+
+    function manageGenerativeAssets(array $generativeAssets = [], bool $includeMine = false) {
+        foreach ($generativeAssets as $asset) {
+            if ($asset->getIsPublic() == false && $includeMine == false) {
+                continue;
+            }
+            $creator = [];
+            if ($asset->getUser() != null) {
+                $creator['id'] = $asset->getUser()->getId();
+                $creator['firstname'] = $asset->getUser()->getFirstName();
+                $creator['surname'] = $asset->getUser()->getSurname();
+                $creator['picture'] = $asset->getUser()->getPicture();
+
+            } else {
+                $creator['id'] = null;
+                $creator['firstname'] = "Anonymous";
+                $creator['surname'] = "Anonymous";
+            }
+
+            $assetsUrls[] = [   
+                "id" => $asset->getId(), 
+                "url" => $this->bucketGenerativeAssetsEndpoint.$asset->getName(), 
+                "likes" => $asset->getLikes(),
+                "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                "prompt" => $asset->getPrompt(),
+                "negativePrompt" => $asset->getNegativePrompt(),
+                "width" => (int)$asset->getWidth(),
+                "height" => (int)$asset->getHeight(),
+                "cfgScale" => $asset->getCfgScale(),
+                "modelName" => $asset->getModelName(),
+                "creator" => $creator,
+            ];
+        }
+        return $assetsUrls;
     }
 
     private function checkKeyAndUser($key, $user)
@@ -845,5 +1271,15 @@ class ControllerUserAssets
             'tenantName' => $tenant,
             'cachedToken' => $this->token->export(),
         ]);
+    }
+
+    private function isLogged()
+    {
+        if (empty($_SESSION['id'])) {
+            return [
+                "success" => false,
+                "message" => "You must be logged in to access this feature.",
+            ];
+        }
     }
 }
