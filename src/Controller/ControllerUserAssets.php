@@ -1085,7 +1085,7 @@ class ControllerUserAssets
                     ];
                 }
                 try {
-                    $isDuplicate = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
+                    $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
                     if ($isDuplicate) {
                         return [
                             "success" => true,
