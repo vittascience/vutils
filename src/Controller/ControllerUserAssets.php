@@ -1075,8 +1075,8 @@ class ControllerUserAssets
                 $negativePrompt = array_key_exists('negativePrompt', $content) ? htmlspecialchars($content['negativePrompt']) : null;
                 $width = array_key_exists('width', $content) ? htmlspecialchars($content['width']) : null;
                 $height = array_key_exists('height', $content) ? htmlspecialchars($content['height']) : null;
-                $scale = array_key_exists('scale', $content) ? htmlspecialchars($content['scale']) : null;
-                $modelName = array_key_exists('modelName', $content) ? htmlspecialchars($content['modelName']) : null;
+                $scale = array_key_exists('cfgScale', $content) ? htmlspecialchars($content['cfgScale']) : null;
+                $modelName = array_key_exists('modeleName', $content) ? htmlspecialchars($content['modeleName']) : null;
 
                 if (!$prompt || !$width || !$height || !$scale || !$modelName) {
                     return [
