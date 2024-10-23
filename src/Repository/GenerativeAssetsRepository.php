@@ -11,7 +11,7 @@ class GenerativeAssetsRepository extends EntityRepository
     public function getAssetsIfDuplicateExists(String $prompt, ?String $negativePrompt, $width, $height, $scale, $modelName)
     {
         $isDuplicate = $this->getEntityManager()->getRepository(GenerativeAssets::class)
-                ->createQueryBuilder('g.promp, g.negativePrompt, g.width, g.height, g.cfgScale, g.modelName, g.creationSteps')
+                ->createQueryBuilder('g')
                 ->where('g.prompt = :prompt')
                 ->andWhere('g.negativePrompt = :negativePrompt')
                 ->andWhere('g.width = :width')

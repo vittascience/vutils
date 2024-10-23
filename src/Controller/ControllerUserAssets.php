@@ -1069,14 +1069,12 @@ class ControllerUserAssets
                 }
             },
             "check_duplicate_generative_assets" => function () {
-                $content = file_get_contents("php://input");
-                $content = json_decode($content, true);
-                $prompt = array_key_exists('prompt', $content) ? htmlspecialchars($content['prompt']) : null;
-                $negativePrompt = array_key_exists('negativePrompt', $content) ? htmlspecialchars($content['negativePrompt']) : null;
-                $width = array_key_exists('width', $content) ? htmlspecialchars($content['width']) : null;
-                $height = array_key_exists('height', $content) ? htmlspecialchars($content['height']) : null;
-                $scale = array_key_exists('cfgScale', $content) ? htmlspecialchars($content['cfgScale']) : null;
-                $modelName = array_key_exists('modeleName', $content) ? htmlspecialchars($content['modeleName']) : null;
+                $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
+                $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
+                $width = array_key_exists('width', $_POST) ? htmlspecialchars($_POST['width']) : null;
+                $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
+                $scale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
+                $modelName = array_key_exists('modeleName', $_POST) ? htmlspecialchars($_POST['modeleName']) : null;
 
                 if (!$prompt || !$width || !$height || !$scale || !$modelName) {
                     return [
