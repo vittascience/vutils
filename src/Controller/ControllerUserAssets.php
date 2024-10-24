@@ -674,11 +674,6 @@ class ControllerUserAssets
                         $userBase = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $user]);
                         if ($userBase) {
                             $userCheck = $userBase;
-                        } else {
-                            $RegularUser = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $user]);
-                            if ($RegularUser) {
-                                $userCheck = $RegularUser;
-                            }
                         }
                     }
 
@@ -1084,11 +1079,33 @@ class ControllerUserAssets
                 }
                 try {
                     $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
+                    if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
+
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $newAssets = new GenerativeAssets();
+                        $newAssets->setPrompt($isDuplicate->getPrompt());
+                        $newAssets->setName($isDuplicate->getName());
+                        $newAssets->setNegativePrompt($isDuplicate->getNegativePrompt());
+                        $newAssets->setWidth($isDuplicate->getWidth());
+                        $newAssets->setHeight($isDuplicate->getHeight());
+                        $newAssets->setCfgScale($isDuplicate->getCfgScale());
+                        $newAssets->setModelName($isDuplicate->getModelName());
+                        $newAssets->setUser($user);
+                        $newAssets->setCreatedAt(new \DateTime('now', new \DateTimeZone('Europe/Paris')));
+                        $newAssets->setIsPublic(false);
+                        $newAssets->setLikes(0);
+                        $newAssets->setAdminReview(false);
+                        $newAssets->setLang($_COOKIE['lang'] ?? 'en');
+                        $newAssets->setCreationSteps($isDuplicate->getCreationSteps());
+                        $this->entityManager->persist($newAssets);
+                        $this->entityManager->flush();
+                    }
+
                     if ($isDuplicate) {
                         return [
                             "success" => true,
                             "isDuplicate" => true,
-                            "data" => $isDuplicate,
+                            "data" => ["creationSteps" => $isDuplicate->getCreationSteps()],
                         ];
                     } else {
                         return [

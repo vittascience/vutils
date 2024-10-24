@@ -185,7 +185,7 @@ class GenerativeAssets implements \JsonSerializable
         return $this->ipAddress;
     }
 
-    public function setIpAddress(string $ipAddress): self
+    public function setIpAddress(?string $ipAddress): self
     {
         $this->ipAddress = $ipAddress;
         return $this;
