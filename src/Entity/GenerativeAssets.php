@@ -107,6 +107,11 @@ class GenerativeAssets implements \JsonSerializable
      */
     private $adminReview;
 
+    /**
+     * @ORM\Column(name="creation_steps", type="string", length=1000, nullable=true)
+     * @var string
+     */
+    private $creationSteps;
 
     /**
      * @return Integer
@@ -180,7 +185,7 @@ class GenerativeAssets implements \JsonSerializable
         return $this->ipAddress;
     }
 
-    public function setIpAddress(string $ipAddress): self
+    public function setIpAddress(?string $ipAddress): self
     {
         $this->ipAddress = $ipAddress;
         return $this;
@@ -284,6 +289,17 @@ class GenerativeAssets implements \JsonSerializable
         $this->adminReview = $adminReview;
         return $this;
     }
+
+    public function getCreationSteps(): ?string
+    {
+        return $this->creationSteps;
+    }
+
+    public function setCreationSteps(string $creationSteps): self
+    {
+        $this->creationSteps = $creationSteps;
+        return $this;
+    }
     
     public function jsonSerialize()
     {
@@ -302,7 +318,8 @@ class GenerativeAssets implements \JsonSerializable
             'likes' => $this->likes,
             'isPublic' => $this->isPublic,
             'modelName' => $this->modelName,
-            'adminReview' => $this->adminReview
+            'adminReview' => $this->adminReview,
+            'creationSteps' => $this->creationSteps
         ];
     }
 
