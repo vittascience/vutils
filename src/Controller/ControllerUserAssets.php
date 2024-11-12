@@ -1063,6 +1063,45 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "get_public_generative_assets_by_id" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+
+                    $asset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                    $creator = [];
+                    if ($asset->getUser() != null) {
+                        $creator['id'] = $asset->getUser()->getId();
+                        $creator['firstname'] = $asset->getUser()->getFirstName();
+                        $creator['surname'] = $asset->getUser()->getSurname();
+                        $creator['picture'] = $asset->getUser()->getPicture();
+                    } else {
+                        $creator['id'] = null;
+                        $creator['firstname'] = "Anonymous";
+                        $creator['surname'] = "Anonymous";
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => [
+                            "id" => $asset->getId(),
+                            "url" => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
+                            "likes" => $asset->getLikes(),
+                            "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                            "prompt" => $asset->getPrompt(),
+                            "negativePrompt" => $asset->getNegativePrompt(),
+                            "width" => (int)$asset->getWidth(),
+                            "height" => (int)$asset->getHeight(),
+                            "cfgScale" => $asset->getCfgScale(),
+                            "modelName" => $asset->getModelName(),
+                            "creator" => $creator,
+                        ]
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
             "check_duplicate_generative_assets" => function () {
                 $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
                 $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
@@ -1120,7 +1159,25 @@ class ControllerUserAssets
                         "message" => $e->getMessage(),
                     ];
                 }
-            }
+            },
+            "get_concours_generative_assets_per_page" => function () {
+                try {
+                    //$page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                    $limit = 20;
+                    //$offset = ($page - 1) * $limit;
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsWithPrefix('concours-educatech');
+                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
