@@ -40,6 +40,7 @@ class GenerativeAssetsRepository extends EntityRepository
         $qb->select('g')
             ->from(GenerativeAssets::class, 'g')
             ->andWhere('g.name LIKE :name')
+            ->andWhere('g.user IS NOT NULL')
             ->setParameter('name', $prefixWithPercent)
             ->orderBy('g.createdAt', 'DESC')
             ->getQuery()
