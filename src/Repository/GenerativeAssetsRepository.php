@@ -32,4 +32,19 @@ class GenerativeAssetsRepository extends EntityRepository
         
         return $isDuplicate;
     }
+
+    
+    public function getAllAssetsWithPrefix(String $prefix) {
+        $prefixWithPercent = '%' . $prefix . '%';
+        $qb = $this->getEntityManager()->createQueryBuilder();
+        $qb->select('g')
+            ->from(GenerativeAssets::class, 'g')
+            ->andWhere('g.name LIKE :name')
+            ->setParameter('name', $prefixWithPercent)
+            ->orderBy('g.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+
+        return $qb->getQuery()->getResult();
+    }
 }
