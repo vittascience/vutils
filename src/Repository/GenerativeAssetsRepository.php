@@ -48,4 +48,48 @@ class GenerativeAssetsRepository extends EntityRepository
 
         return $qb->getQuery()->getResult();
     }
+
+    public function getAllMostPopularByCreatedAt($since, $limit, $offset) {
+        $queryBuilder = $repository->createQueryBuilder('asset')
+            ->where('asset.isPublic = :isPublic')
+            ->andWhere('asset.createdAt >= :oneWeekAgo')
+            ->orderBy('asset.likes', 'DESC')
+            ->setParameter('isPublic', true)
+            ->setParameter('oneWeekAgo', $oneWeekAgo)
+            ->setMaxResults($limit)
+            ->setFirstResult($offset);
+
+        return $publicGenerativeAssets = $queryBuilder->getQuery()->getResult();   
+    }
+
+    public function getCountAllMostPopularByCreatedAt($since, $mine = false, $user = null) {
+        $queryBuilder = $this->createQueryBuilder('asset')
+            ->select('COUNT(asset.id)')
+            ->where('asset.isPublic = :isPublic')
+            ->andWhere('asset.createdAt >= :oneWeekAgo')
+            ->setParameter('isPublic', true)
+            ->setParameter('oneWeekAgo', $oneWeekAgo);
+
+        if ($mine && $user) {
+            $queryBuilder->andWhere('asset.user = :user')
+                         ->setParameter('user', $user);
+        }
+
+        return $queryBuilder->getQuery()->getSingleScalarResult();
+    }
+
+    public function getCountAll($asc = false, $mostLiked = false, $mine = false, $user = null) {
+        $queryBuilder = $repository->createQueryBuilder('asset')
+            ->select('COUNT(asset.id)');
+
+        if ($asc) {
+            $queryBuilder->orderBy('asset.createdAt', 'ASC');
+        } else if ($mostLiked) {
+            $queryBuilder->orderBy('asset.likes', 'DESC');
+        } else {
+            $queryBuilder->orderBy('asset.createdAt', 'DESC');
+        }
+
+        return $queryBuilder->getQuery()->getSingleScalarResult();
+    }
 }

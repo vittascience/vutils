@@ -777,22 +777,41 @@ class ControllerUserAssets
             "get_my_generative_assets" => function () {
                 try {
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $myGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user]);
-                    $assetsUrls = [];
-                    foreach ($myGenerativeAssets as $asset) {
-                        $assetsUrls[] = [
-                            "id" => $asset->getId(),
-                            "url" => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
-                            "likes" => $asset->getLikes(),
-                            "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
-                            "prompt" => $asset->getPrompt(),
-                            "negativePrompt" => $asset->getNegativePrompt(),
-                            "width" => $asset->getWidth(),
-                            "height" => $asset->getHeight(),
-                            "cfgScale" => $asset->getCfgScale(),
-                            "modelName" => $asset->getModelName(),
-                        ];
+                    $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                    $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
+                    $limit = 20;
+                    $offset = ($page - 1) * $limit;
+                    $oneMonthAgo = (new \DateTime())->modify('-1 month');
+                    $oneWeekAgo = (new \DateTime())->modify('-7 days');
+                             
+                    if($filter==='most-popular') $publicGenerativeAssets =  $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user],  ['likes' => 'DESC'], $limit, $offset);
+                    else if($filter==='most-popular-week') {
+                        $queryBuilder = $this->entityManager->getRepository(GenerativeAssets::class)->createQueryBuilder('asset')
+                        ->where('asset.user = :user')
+                        ->andWhere('asset.createdAt >= :oneWeekAgo')
+                        ->orderBy('asset.likes', 'DESC')
+                        ->setParameter('user', $user)
+                        ->setParameter('oneWeekAgo', $oneWeekAgo)
+                        ->setMaxResults($limit)
+                        ->setFirstResult($offset);
+        
+                    $publicGenerativeAssets = $queryBuilder->getQuery()->getResult();      
                     }
+                    else if($filter==='most-popular-month') {
+                        $queryBuilder = $this->entityManager->getRepository(GenerativeAssets::class)->createQueryBuilder('asset')
+                        ->where('asset.user = :user')
+                        ->andWhere('asset.createdAt >= :oneMonthAgo')
+                        ->orderBy('asset.likes', 'DESC')
+                        ->setParameter('user', $user)
+                        ->setParameter('oneMonthAgo', $oneMonthAgo)
+                        ->setMaxResults($limit)
+                        ->setFirstResult($offset);
+        
+                    $publicGenerativeAssets = $queryBuilder->getQuery()->getResult();    
+                    }
+                    else $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user, 'isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
+
+                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, false);
                     return [
                         "success" => true,
                         "assets" => $assetsUrls,
@@ -893,13 +912,16 @@ class ControllerUserAssets
             "get_public_generative_assets_per_page" => function () {
                 try {
                     $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                    $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
                     $limit = 20;
-                    $offset = ($page - 1) * $limit;
-                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
-                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, false);
+                    $offset = ($page - 1) * $limit;                    
+                    $oneMonthAgo = (new \DateTime())->modify('-1 month');
+                    $oneWeekAgo = (new \DateTime())->modify('-7 days');
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
+                    $assets = $this->getGenerativeAssetsByFilters($filter, $page, $limit, $repository);
                     return [
                         "success" => true,
-                        "assets" => $assetsUrls,
+                        "assets" => $assets,
                     ];
                 } catch (Exception $e) {
                     return [
@@ -999,11 +1021,34 @@ class ControllerUserAssets
                 }
             },
             "get_generative_assets_length" => function () {
+                $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
+                $oneMonthAgo = (new \DateTime())->modify('-1 month');
+                $oneWeekAgo = (new \DateTime())->modify('-7 days');
                 try {
-                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true]);
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
+                    $count = $this->getCountGenerativeAssetsByFilters($filter, $repository, false, false);
                     return [
                         "success" => true,
-                        "length" => count($publicGenerativeAssets)
+                        "length" => $count
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_my_assets_length" => function () {
+                $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
+                $oneMonthAgo = (new \DateTime())->modify('-1 month');
+                $oneWeekAgo = (new \DateTime())->modify('-7 days');
+                try {
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
+                    $count = $this->getCountGenerativeAssetsByFilters($filter, $repository, true, $user);
+                    return [
+                        "success" => true,
+                        "length" => $count
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1181,6 +1226,79 @@ class ControllerUserAssets
         );
 
         return call_user_func($this->actions[$action], $data);
+    }
+
+
+    function getGenerativeAssetsByFilters($filters = null, $page = 1, $limit = 20, $repository)
+    {
+        $offset = ($page - 1) * $limit;
+        $oneMonthAgo = (new \DateTime())->modify('-1 month');
+        $oneWeekAgo = (new \DateTime())->modify('-7 days');
+        
+        $publicGenerativeAssets = null;
+        switch ($filter) {
+            case 'most-recent':
+                $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                break;
+            case 'most-popular':
+                $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['likes' => 'DESC'], $limit, $offset);
+                break;
+            case 'most-popular-week':
+                $publicGenerativeAssets = $repository->getAllMostPopularByCreatedAt($oneWeekAgo, $limit, $offset);
+                break;
+            case 'most-popular-month':
+                $publicGenerativeAssets = $repository->getAllMostPopularByCreatedAt($oneMonthAgo, $limit, $offset);
+                break;
+            default:
+                $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                break;
+        }
+        
+        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+        return [
+            "success" => true,
+            "assets" => $assetsUrls,
+        ];
+    }
+
+    /* 
+        * Get the count of generative assets by filters
+        * @param $filters string
+        * @param $page int
+        * @param $limit int
+        * @param $repository object
+        * @param $mine bool
+        * @param $user object
+    */
+    function getCountGenerativeAssetsByFilters($filters = null, $repository, $mine = false, $user = null)
+    {
+        $offset = ($page - 1) * $limit;
+        $oneMonthAgo = (new \DateTime())->modify('-1 month');
+        $oneWeekAgo = (new \DateTime())->modify('-7 days');
+        
+        $count = 0;
+        switch ($filter) {
+            case 'most-recent':
+                $count = $repository->getCountAll(false, false, $mine, $user);
+                break;
+            case 'most-popular':
+                $count = $repository->getCountAll(false, true, $mine, $user);
+                break;
+            case 'most-popular-week':
+                $count = $repository->getCountAllMostPopularByCreatedAt($oneWeekAgo, $mine, $user);
+                break;
+            case 'most-popular-month':
+                $count = $repository->getCountAllMostPopularByCreatedAt($oneMonthAgo, $mine, $user);
+                break;
+            default:
+                $count = $repository->getCountAll(false, false, $mine, $user);
+                break;
+        }
+        
+        return [
+            "success" => true,
+            "assets" => $count,
+        ];
     }
 
     function getGenerativeAssetsFromScaleway(string $key)
