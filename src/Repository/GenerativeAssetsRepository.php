@@ -79,7 +79,7 @@ class GenerativeAssetsRepository extends EntityRepository
     }
 
     public function getCountAll($asc = false, $mostLiked = false, $mine = false, $user = null) {
-        $queryBuilder = $repository->createQueryBuilder('asset')
+        $queryBuilder = $this->createQueryBuilder('asset')
             ->select('COUNT(asset.id)');
 
         if ($asc) {
@@ -88,6 +88,11 @@ class GenerativeAssetsRepository extends EntityRepository
             $queryBuilder->orderBy('asset.likes', 'DESC');
         } else {
             $queryBuilder->orderBy('asset.createdAt', 'DESC');
+        }
+
+        if ($mine && $user) {
+            $queryBuilder->andWhere('asset.user = :user')
+                         ->setParameter('user', $user);
         }
 
         return $queryBuilder->getQuery()->getSingleScalarResult();
