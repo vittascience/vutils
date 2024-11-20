@@ -50,12 +50,14 @@ class GenerativeAssetsRepository extends EntityRepository
     }
 
     public function getAllMostPopularByCreatedAt($since, $limit, $offset) {
-        $queryBuilder = $repository->createQueryBuilder('asset')
+        $queryBuilder = $this->getEntityManager()->createQueryBuilder();
+        $queryBuilder->select('asset')
+            ->from(GenerativeAssets::class, 'asset')
             ->where('asset.isPublic = :isPublic')
             ->andWhere('asset.createdAt >= :oneWeekAgo')
             ->orderBy('asset.likes', 'DESC')
             ->setParameter('isPublic', true)
-            ->setParameter('oneWeekAgo', $oneWeekAgo)
+            ->setParameter('oneWeekAgo', $since)
             ->setMaxResults($limit)
             ->setFirstResult($offset);
 
@@ -96,5 +98,16 @@ class GenerativeAssetsRepository extends EntityRepository
         }
 
         return $queryBuilder->getQuery()->getSingleScalarResult();
+    }
+
+    public function findByArrayOfIds(array $ids) {
+        $qb = $this->getEntityManager()->createQueryBuilder();
+        $qb->select('g')
+            ->from(GenerativeAssets::class, 'g')
+            ->where($qb->expr()->in('g.id', $ids))
+            ->getQuery()
+            ->getResult();
+
+        return $qb->getQuery()->getResult();
     }
 }

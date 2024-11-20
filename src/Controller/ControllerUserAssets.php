@@ -783,6 +783,7 @@ class ControllerUserAssets
                     $offset = ($page - 1) * $limit;
                     $oneMonthAgo = (new \DateTime())->modify('-1 month');
                     $oneWeekAgo = (new \DateTime())->modify('-7 days');
+                    $allAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user]);     
                              
                     if($filter==='most-popular') $publicGenerativeAssets =  $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user],  ['likes' => 'DESC'], $limit, $offset);
                     else if($filter==='most-popular-week') {
@@ -815,6 +816,7 @@ class ControllerUserAssets
                     return [
                         "success" => true,
                         "assets" => $assetsUrls,
+                         "length" => count($allAssets)
                     ];
                 } catch (Exception $e) {
                     return [
@@ -919,9 +921,11 @@ class ControllerUserAssets
                     $oneWeekAgo = (new \DateTime())->modify('-7 days');
                     $repository = $this->entityManager->getRepository(GenerativeAssets::class);
                     $assets = $this->getGenerativeAssetsByFilters($filter, $page, $limit, $repository);
+                    $countAssets = $this->getCountGenerativeAssetsByFilters($filter, $repository, false, false);
                     return [
                         "success" => true,
                         "assets" => $assets,
+                        "length" => $countAssets
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1147,6 +1151,48 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "get_public_generative_assets_by_ids" => function () {
+                try {
+                    $ids = array_key_exists('ids', $_POST) ? json_decode(htmlspecialchars($_POST['ids'])) : null;
+                    $asset = $this->entityManager->getRepository(GenerativeAssets::class)->findByArrayOfIds($ids);
+                    $assets = [];
+                    foreach ($asset as $a) {
+                        $creator = [];
+                        if ($a->getUser() != null) {
+                            $creator['id'] = $a->getUser()->getId();
+                            $creator['firstname'] = $a->getUser()->getFirstName();
+                            $creator['surname'] = $a->getUser()->getSurname();
+                            $creator['picture'] = $a->getUser()->getPicture();
+                        } else {
+                            $creator['id'] = null;
+                            $creator['firstname'] = "Anonymous";
+                            $creator['surname'] = "Anonymous";
+                        }
+                        $assets[] = [
+                            "id" => $a->getId(),
+                            "url" => $this->bucketGenerativeAssetsEndpoint . $a->getName(),
+                            "likes" => $a->getLikes(),
+                            "createdAt" => $a->getCreatedAt()->format('Y-m-d H:i:s'),
+                            "prompt" => $a->getPrompt(),
+                            "negativePrompt" => $a->getNegativePrompt(),
+                            "width" => (int)$a->getWidth(),
+                            "height" => (int)$a->getHeight(),
+                            "cfgScale" => $a->getCfgScale(),
+                            "modelName" => $a->getModelName(),
+                            "creator" => $creator,
+                        ];
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => $assets,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
             "check_duplicate_generative_assets" => function () {
                 $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
                 $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
@@ -1229,7 +1275,7 @@ class ControllerUserAssets
     }
 
 
-    function getGenerativeAssetsByFilters($filters = null, $page = 1, $limit = 20, $repository)
+    function getGenerativeAssetsByFilters($filter = null, $page = 1, $limit = 20, $repository)
     {
         $offset = ($page - 1) * $limit;
         $oneMonthAgo = (new \DateTime())->modify('-1 month');
@@ -1255,10 +1301,7 @@ class ControllerUserAssets
         }
         
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
-        return [
-            "success" => true,
-            "assets" => $assetsUrls,
-        ];
+        return $assetsUrls;
     }
 
     /* 
@@ -1295,10 +1338,7 @@ class ControllerUserAssets
                 break;
         }
         
-        return [
-            "success" => true,
-            "assets" => $count,
-        ];
+        return $count;
     }
 
     function getGenerativeAssetsFromScaleway(string $key)
