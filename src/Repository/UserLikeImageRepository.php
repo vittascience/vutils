@@ -23,7 +23,7 @@ class UserLikeImageRepository extends EntityRepository
     }
 
 
-    public function getMyFavoriteSince($user = null, $since = null) {
+    public function getMyFavoriteSince($user = null, $since = null, $limit = null, $offset = null) {
         $qb = $this->getEntityManager()->createQueryBuilder();
         $qb->select('g')
             ->from(UserLikeImage::class, 'g')
@@ -34,7 +34,17 @@ class UserLikeImageRepository extends EntityRepository
             $qb->andWhere('g.likedAt >= :since')
                 ->setParameter('since', $since);
         }
-        
+    
+        // Gestion de limit
+        if ($limit !== null) {
+            $qb->setMaxResults($limit);
+        }
+    
+        // Gestion de offset
+        if ($offset !== null) {
+            $qb->setFirstResult($offset);
+        }
+    
         return $qb->getQuery()->getResult();
     }
 
@@ -55,6 +65,17 @@ class UserLikeImageRepository extends EntityRepository
         $qb = $this->getEntityManager()->createQueryBuilder();
         $qb->select('g')
             ->from(UserLikeImage::class, 'g')
+            ->andWhere('g.user = :user')
+            ->setParameter('user', $user);
+        
+        return $qb->getQuery()->getResult();
+    }
+
+    public function getIdsOfMyLikedAssets($user = null) {
+        $qb = $this->getEntityManager()->createQueryBuilder();
+        $qb->select('ga.id') // Suppose que tu veux les IDs des assets
+            ->from(UserLikeImage::class, 'g')
+            ->join('g.generativeAssets', 'ga') // Joindre la relation
             ->andWhere('g.user = :user')
             ->setParameter('user', $user);
         

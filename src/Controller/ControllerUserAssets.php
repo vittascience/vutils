@@ -789,14 +789,28 @@ class ControllerUserAssets
                     $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
                     $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
                     $limit = 20;
-                    $offset = ($page - 1) * $limit;
                     $repository = $this->entityManager->getRepository(GenerativeAssets::class);
                     $assets = $this->getGenerativeAssetsByFilters($filter, $page, $limit, $repository);
                     $countAssets = $this->getCountGenerativeAssetsByFilters($filter, $repository, false, false, true);
+
+                    $myLikedImages = [];
+                    if ($_SESSION['id']) {
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+
+                        // check if assets contains images that I liked
+                        foreach ($assets as $key => $asset) {
+                            if (in_array($asset['id'], $myLikedImages)) {
+                                $assets[$key]['liked'] = true;
+                            } else {
+                                $assets[$key]['liked'] = false;
+                            }
+                        }
+                    }
                     return [
                         "success" => true,
                         "assets" => $assets,
-                        "length" => $countAssets
+                        "length" => $countAssets,
                     ];
                 } catch (Exception $e) {
                     return [
@@ -851,7 +865,7 @@ class ControllerUserAssets
                     if (!empty($_SESSION['id'])) {
                         // remove the UserLikeImage if exist
                         $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                        $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $user, 'image' => $generativeAsset]);
+                        $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $user, 'generativeAssets' => $generativeAsset]);
                         if ($isImageLiked) {
                             $this->entityManager->remove($isImageLiked);
                             $this->entityManager->flush();
@@ -899,6 +913,34 @@ class ControllerUserAssets
                                 $this->entityManager->flush();
                             }
                         }
+                    } else {
+                        return [
+                            "success" => false,
+                            "message" => "not_connected",
+                        ];
+                    }
+                } catch(Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "is_image_liked_by_user" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                        $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $user, 'generativeAssets' => $generativeAsset]);
+                        $liked = false;
+                        if ($isImageLiked) {
+                            $liked = true;
+                        }
+                        return [
+                            "success" => $liked,
+                            "isLiked" => false,
+                        ];
                     } else {
                         return [
                             "success" => false,
@@ -1366,7 +1408,7 @@ class ControllerUserAssets
         $likedImages = [];
         switch ($filter) {
             case 'most-recent':
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null));
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
                 break;
             case 'most-popular':
                 $ids = [];
@@ -1377,13 +1419,13 @@ class ControllerUserAssets
                 $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularFromArray($limit, $offset, $ids);
                 break;
             case 'most-popular-week':
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneWeekAgo));
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneWeekAgo, $limit, $offset));
                 break;
             case 'most-popular-month':
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneMonthAgo));
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneMonthAgo, $limit, $offset));
                 break;
             default:
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null));
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
                 break;
         }
 
