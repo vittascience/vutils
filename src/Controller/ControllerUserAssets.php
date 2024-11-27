@@ -12,6 +12,7 @@ use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
 use Utils\Entity\GenerativeAssets;
+use Utils\Entity\UserLikeImage;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
 
@@ -30,6 +31,8 @@ class ControllerUserAssets
     protected $bucket;
     protected $bucketGenerativeAssets;
     protected $bucketGenerativeAssetsEndpoint;
+    protected $oneMonthAgo;
+    protected $oneWeekAgo;
 
     public function __construct($entityManager, $user)
     {
@@ -717,7 +720,7 @@ class ControllerUserAssets
                     $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
                     $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
                     $limit = 20;
-                    $offset = ($page - 1) * $limit;
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
                     $assets = $this->getMyGenerativeAssetsByFilters($filter, $page, $limit, $user);
                     $countAssets = $this->getCountGenerativeAssetsByFilters($filter, $repository, true, $user, null);
                     return [
@@ -815,7 +818,7 @@ class ControllerUserAssets
                         $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
                         $userLikeImage = new UserLikeImage();
                         $userLikeImage->setUser($user);
-                        $userLikeImage->setImage($generativeAsset);
+                        $userLikeImage->setImg($generativeAsset);
                         $userLikeImage->setLikedAt($dateNow);
                         $this->entityManager->persist($userLikeImage);
                         $this->entityManager->flush();
@@ -890,7 +893,7 @@ class ControllerUserAssets
                                 $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
                                 $userLikeImage = new UserLikeImage();
                                 $userLikeImage->setUser($user);
-                                $userLikeImage->setImage($generativeAsset);
+                                $userLikeImage->setImg($generativeAsset);
                                 $userLikeImage->setLikedAt($dateNow);
                                 $this->entityManager->persist($userLikeImage);
                                 $this->entityManager->flush();
@@ -912,12 +915,12 @@ class ControllerUserAssets
             "get_list_of_my_favorite_generative_assets_per_page" => function () {
                 try {
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                    $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : 1;
                     $limit = 20;
-                    $offset = ($page - 1) * $limit;
                     $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
-                    $assetsUrl = $this->getMyFavoriteGenerativeAssetsByFilters($filter, $page, $limit, $user);
-                    $countAssets = $this->getCountOfMyFavoriteGenerativeAssetsByFilters($filter, $page, $limit, $user);
+
+                    $assetsUrls = $this->getMyFavoriteGenerativeAssetsByFilters($filter, $page, $limit, $user);
+                    $countAssets = $this->getCountOfMyFavoriteGenerativeAssetsByFilters($filter, $user);
                     return [
                         "success" => true,
                         "assets" => $assetsUrls,
@@ -1332,7 +1335,6 @@ class ControllerUserAssets
     */
     function getCountGenerativeAssetsByFilters($filter = null, $repository, $mine = false, $user = null, $isPublic = true)
     {
-        $offset = ($page - 1) * $limit;
         $count = 0;
         switch ($filter) {
             case 'most-recent':
@@ -1360,62 +1362,68 @@ class ControllerUserAssets
     {
         $offset = ($page - 1) * $limit;
         $repository = $this->entityManager->getRepository(UserLikeImage::class);
-        
-        $publicGenerativeAssets = null;
+
+        $likedImages = [];
         switch ($filter) {
             case 'most-recent':
-                $publicGenerativeAssets = $repository->getMyFavoriteSince($user, null);
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null));
                 break;
             case 'most-popular':
                 $ids = [];
                 $assetsIds = $repository->getIdsImagesOfMyFavorite($user);
                 foreach ($assetsIds as $assetId) {
-                    $ids[] = $assetId['image_id'];
+                    $ids[] = $assetId->getImg()->getId();
                 }
-                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularFromArray($limit, $offset, $ids);
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularFromArray($limit, $offset, $ids);
                 break;
             case 'most-popular-week':
-                $publicGenerativeAssets = $repository->getMyFavoriteSince($user, $this->oneWeekAgo);
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneWeekAgo));
                 break;
             case 'most-popular-month':
-                $publicGenerativeAssets = $repository->getMyFavoriteSince($user, $this->oneMonthAgo);
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneMonthAgo));
                 break;
             default:
-                $publicGenerativeAssets = $repository->getMyFavoriteSince($user, null);
+                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null));
                 break;
         }
-        
-        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+
+
+        $assetsUrls = $this->manageGenerativeAssets($likedImages, true);
         return $assetsUrls;
     }
 
+    function processReturnFromFavorite($array = null) {
+        $likedImages = [];
+        foreach ($array as $asset) {
+            $likedImages[] = $asset->getImg();
+        }
+        return $likedImages;
+    }
 
-    function getCountOfMyFavoriteGenerativeAssetsByFilters($filter = null, $page = 1, $limit = 20, $user)
+
+    function getCountOfMyFavoriteGenerativeAssetsByFilters($filter = null, $user)
     {
-        $offset = ($page - 1) * $limit;
         $repository = $this->entityManager->getRepository(UserLikeImage::class);
-        
-        $publicGenerativeAssets = null;
+        $count = null;
         switch ($filter) {
             case 'most-recent':
-                $publicGenerativeAssets = $repository->getCountOfMyFavoriteSince($user, null);
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
                 break;
             case 'most-popular':
-                $publicGenerativeAssets = $repository->getCountOfMyFavoriteSince($user, null);
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
                 break;
             case 'most-popular-week':
-                $publicGenerativeAssets = $repository->getCountOfMyFavoriteSince($user, $this->oneWeekAgo);
+                $count = $repository->getCountOfMyFavoriteSince($user, $this->oneWeekAgo);
                 break;
             case 'most-popular-month':
-                $publicGenerativeAssets = $repository->getCountOfMyFavoriteSince($user, $this->oneMonthAgo);
+                $count = $repository->getCountOfMyFavoriteSince($user, $this->oneMonthAgo);
                 break;
             default:
-                $publicGenerativeAssets = $repository->getCountOfMyFavoriteSince($user, null);
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
                 break;
         }
-        
-        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
-        return $assetsUrls;
+
+        return $count;
     }
 
     function getGenerativeAssetsFromScaleway(string $key)
@@ -1433,6 +1441,7 @@ class ControllerUserAssets
 
     function manageGenerativeAssets(array $generativeAssets = [], bool $includeMine = false)
     {
+        $assetsUrls = [];
         foreach ($generativeAssets as $asset) {
             if ($asset->getIsPublic() == false && $includeMine == false) {
                 continue;

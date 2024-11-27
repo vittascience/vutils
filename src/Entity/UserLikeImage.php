@@ -5,11 +5,13 @@ namespace Utils\Entity;
 
 use User\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
+use Utils\Entity\GenerativeAssets;
+
 
 
 /**
- * @ORM\Entity(repositoryClass="Utils\Repository\UserImgRepository")
- * @ORM\Table(name="user_images")
+ * @ORM\Entity(repositoryClass="Utils\Repository\UserLikeImageRepository")
+ * @ORM\Table(name="generative_assets_like")
  */
 class UserLikeImage
 {
@@ -29,7 +31,7 @@ class UserLikeImage
     private $user;
 
     /**
-     * @ORM\ManyToOne(targetEntity="User\Entity\GenerativeAssets")
+     * @ORM\ManyToOne(targetEntity="Utils\Entity\GenerativeAssets")
      * @ORM\JoinColumn(name="image_id", referencedColumnName="id", onDelete="CASCADE", nullable=false)
      * @var GenerativeAssets
      */
@@ -85,13 +87,32 @@ class UserLikeImage
         $this->generativeAssets = $img;
         return $this;
     }
+
+    /**
+     * @return \DateTime
+     */
+    public function getLikedAt(): ?\DateTime
+    {
+        return $this->likedAt;
+    }
+
+    /**
+     * @param \DateTime $likedAt
+     * @return UserLikeImage
+     */
+    public function setLikedAt(\DateTime $likedAt): UserLikeImage
+    {
+        $this->likedAt = $likedAt;
+        return $this;
+    }
     
     public function jsonSerialize()
     {
         return [
             'id' => $this->getId(),
             'user' => $this->getUser(),
-            'generativeImg' => $this->getImg()
+            'generativeImg' => $this->getImg(),
+            'likedAt' => $this->getLikedAt()
         ];
     }
 

@@ -156,6 +156,6 @@ class GenerativeAssetsRepository extends EntityRepository
             ->setMaxResults($limit)
             ->setFirstResult($offset);
 
-        return $publicGenerativeAssets = $queryBuilder->getQuery()->getResult();   
+        return $queryBuilder->getQuery()->getResult();   
     }
 }

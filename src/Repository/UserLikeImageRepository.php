@@ -3,6 +3,7 @@
 namespace Utils\Repository;
 
 use Doctrine\ORM\EntityRepository;
+use Utils\Entity\UserLikeImage;
 
 class UserLikeImageRepository extends EntityRepository
 {
@@ -52,7 +53,7 @@ class UserLikeImageRepository extends EntityRepository
 
     public function getIdsImagesOfMyFavorite($user = null) {
         $qb = $this->getEntityManager()->createQueryBuilder();
-        $qb->select('g.generativeAssets')
+        $qb->select('g')
             ->from(UserLikeImage::class, 'g')
             ->andWhere('g.user = :user')
             ->setParameter('user', $user);
