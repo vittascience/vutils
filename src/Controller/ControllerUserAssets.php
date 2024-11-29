@@ -794,17 +794,21 @@ class ControllerUserAssets
                     $countAssets = $this->getCountGenerativeAssetsByFilters($filter, $repository, false, false, true);
 
                     $myLikedImages = [];
-                    if ($_SESSION['id']) {
-                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
                         $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
-
-                        // check if assets contains images that I liked
-                        foreach ($assets as $key => $asset) {
-                            if (in_array($asset['id'], $myLikedImages)) {
-                                $assets[$key]['liked'] = true;
-                            } else {
-                                $assets[$key]['liked'] = false;
-                            }
+                    
+                        // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
+                        $likedImageIds = array_column($myLikedImages, 'id');
+                    
+                        // Ajouter l'information "isLiked" directement dans les assets
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
+                        }
+                    } else {
+                        // Si l'utilisateur n'est pas connecté, aucune image n'est likée
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = false;
                         }
                     }
                     return [
