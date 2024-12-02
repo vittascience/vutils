@@ -1420,26 +1420,35 @@ class ControllerUserAssets
         $repository = $this->entityManager->getRepository(UserLikeImage::class);
 
         $likedImages = [];
+
+        $assetsIds = $repository->getIdsImagesOfMyFavorite($user);
+        $ids = [];
+        foreach ($assetsIds as $assetId) {
+            $ids[] = $assetId->getImg()->getId();
+        }
+
+        if (empty($ids)) {
+            return [];
+        }
+
         switch ($filter) {
             case 'most-recent':
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
+                //$likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, null);
                 break;
             case 'most-popular':
-                $ids = [];
-                $assetsIds = $repository->getIdsImagesOfMyFavorite($user);
-                foreach ($assetsIds as $assetId) {
-                    $ids[] = $assetId->getImg()->getId();
-                }
                 $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularFromArray($limit, $offset, $ids);
                 break;
             case 'most-popular-week':
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneWeekAgo, $limit, $offset));
+                /* $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneWeekAgo, $limit, $offset)); */
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, $this->oneWeekAgo);
                 break;
             case 'most-popular-month':
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneMonthAgo, $limit, $offset));
+                /* $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneMonthAgo, $limit, $offset)); */
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, $this->oneMonthAgo);
                 break;
             default:
-                $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, null);
                 break;
         }
 

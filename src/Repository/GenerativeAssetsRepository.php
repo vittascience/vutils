@@ -158,4 +158,26 @@ class GenerativeAssetsRepository extends EntityRepository
 
         return $queryBuilder->getQuery()->getResult();   
     }
+
+    public function getAllMostPopularSinceFromArray($limit, $offset, array $ids, $since = null) {
+        $queryBuilder = $this->getEntityManager()->createQueryBuilder();
+        $queryBuilder->select('asset')
+            ->from(GenerativeAssets::class, 'asset')
+            ->where('asset.isPublic = :isPublic')
+            ->andWhere($queryBuilder->expr()->in('asset.id', $ids))
+            
+            ->setParameter('isPublic', true)
+            ->setMaxResults($limit)
+            ->setFirstResult($offset);
+        
+        if ($since !== null) {
+            $queryBuilder->andWhere('asset.createdAt >= :since')
+                         ->setParameter('since', $since)
+                         ->orderBy('asset.likes', 'DESC');
+        } else {
+            $queryBuilder->orderBy('asset.createdAt', 'DESC');
+        }
+
+        return $queryBuilder->getQuery()->getResult();   
+    }
 }
