@@ -827,18 +827,28 @@ class ControllerUserAssets
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                     $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
-                    $likes = $generativeAsset->getLikes();
-                    $generativeAsset->setLikes($likes + 1);
-                    $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
-                    $this->entityManager->persist($generativeAsset);
 
                     if (!empty($_SESSION['id'])) {
-                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                        $userLikeImage = new UserLikeImage();
-                        $userLikeImage->setUser($user);
-                        $userLikeImage->setImg($generativeAsset);
-                        $userLikeImage->setLikedAt($dateNow);
-                        $this->entityManager->persist($userLikeImage);
+                        // check if the image is already liked by the user
+                        $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $_SESSION['id'], 'generativeAssets' => $generativeAsset]);
+                        if (!$isImageLiked) {
+                            $likes = $generativeAsset->getLikes();
+                            $generativeAsset->setLikes($likes + 1);
+                            $this->entityManager->persist($generativeAsset);
+
+                            $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
+                            $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                            $userLikeImage = new UserLikeImage();
+                            $userLikeImage->setUser($user);
+                            $userLikeImage->setImg($generativeAsset);
+                            $userLikeImage->setLikedAt($dateNow);
+                            $this->entityManager->persist($userLikeImage);
+                            $this->entityManager->flush();
+                        }
+                    } else {
+                        $likes = $generativeAsset->getLikes();
+                        $generativeAsset->setLikes($likes + 1);
+                        $this->entityManager->persist($generativeAsset);
                         $this->entityManager->flush();
                     }
 
@@ -1432,7 +1442,6 @@ class ControllerUserAssets
                 $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
                 break;
         }
-
 
         $assetsUrls = $this->manageGenerativeAssets($likedImages, true);
         return $assetsUrls;
