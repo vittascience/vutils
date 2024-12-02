@@ -952,8 +952,8 @@ class ControllerUserAssets
                             $liked = true;
                         }
                         return [
-                            "success" => $liked,
-                            "isLiked" => false,
+                            "success" => true,
+                            "isLiked" => $liked,
                         ];
                     } else {
                         return [
