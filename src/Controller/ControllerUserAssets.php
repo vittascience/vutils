@@ -919,6 +919,11 @@ class ControllerUserAssets
 
                             if (!$isLiked) {
                                 $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                                if ($generativeAsset->getLikes() == 0) {
+                                    $generativeAsset->setLikes(1);
+                                    $this->entityManager->persist($generativeAsset);
+                                    $this->entityManager->flush();
+                                }
                                 $userLikeImage = new UserLikeImage();
                                 $userLikeImage->setUser($user);
                                 $userLikeImage->setImg($generativeAsset);
@@ -976,7 +981,7 @@ class ControllerUserAssets
                     $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
 
                     $assetsUrls = $this->getMyFavoriteGenerativeAssetsByFilters($filter, $page, $limit, $user);
-                    $countAssets = $this->getCountOfMyFavoriteGenerativeAssetsByFilters($filter, $user);
+                    $countAssets = $this->entityManager->getRepository(UserLikeImage::class)->getCountOfMyFavoriteSince($user, null);
                     return [
                         "success" => true,
                         "assets" => $assetsUrls,
@@ -1465,9 +1470,10 @@ class ControllerUserAssets
     }
 
 
+/*     
     function getCountOfMyFavoriteGenerativeAssetsByFilters($filter = null, $user)
     {
-        $repository = $this->entityManager->getRepository(UserLikeImage::class);
+        $repository = $this->entityManager->getRepository(UserLikeImage::class)->getCountOfMyFavoriteSince($user, null);
         $count = null;
         switch ($filter) {
             case 'most-recent':
@@ -1477,10 +1483,10 @@ class ControllerUserAssets
                 $count = $repository->getCountOfMyFavoriteSince($user, null);
                 break;
             case 'most-popular-week':
-                $count = $repository->getCountOfMyFavoriteSince($user, $this->oneWeekAgo);
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
                 break;
             case 'most-popular-month':
-                $count = $repository->getCountOfMyFavoriteSince($user, $this->oneMonthAgo);
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
                 break;
             default:
                 $count = $repository->getCountOfMyFavoriteSince($user, null);
@@ -1488,7 +1494,8 @@ class ControllerUserAssets
         }
 
         return $count;
-    }
+    } 
+*/
 
     function getGenerativeAssetsFromScaleway(string $key)
     {
