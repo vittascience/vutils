@@ -12,9 +12,9 @@ use Utils\Entity\UserAssets;
 use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
 use Utils\Entity\GenerativeAssets;
+use Utils\Entity\UserLikeImage;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
-use Utils\Entity\GenerativeAssetsDefault;
 
 class ControllerUserAssets
 {
@@ -31,6 +31,8 @@ class ControllerUserAssets
     protected $bucket;
     protected $bucketGenerativeAssets;
     protected $bucketGenerativeAssetsEndpoint;
+    protected $oneMonthAgo;
+    protected $oneWeekAgo;
 
     public function __construct($entityManager, $user)
     {
@@ -59,6 +61,9 @@ class ControllerUserAssets
                 $this->bucket = $_ENV['VS_S3_BUCKET'];
             }
         }
+
+        $this->oneMonthAgo = (new \DateTime())->modify('-1 month');
+        $this->oneWeekAgo = (new \DateTime())->modify('-7 days');
     }
 
     public function action($action, $data = [])
@@ -709,130 +714,27 @@ class ControllerUserAssets
                     ];
                 }
             },
-            "get_one_generative_assets" => function () {
-                try {
-                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
-                    $assets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
-                    if ($assets->getIspublic() == false || $assets->getUser() != null && $assets->getUser()->getId() != $_SESSION['id']) {
-                        return [
-                            "success" => false,
-                            "message" => "not_allowed",
-                        ];
-                    }
-
-                    $assetsData = [
-                        "id" => $assets->getId(),
-                        "url" => $this->bucketGenerativeAssetsEndpoint . $assets->getName(),
-                        "prompt" => $assets->getPrompt(),
-                        "negativePrompt" => $assets->getNegativePrompt(),
-                        "width" => $assets->getWidth(),
-                        "height" => $assets->getHeight(),
-                        "cfgScale" => $assets->getCfgScale(),
-                        "modelName" => $assets->getModelName(),
-                    ];
-                    return [
-                        "success" => true,
-                        "assets" => $assetsData,
-                    ];
-                } catch (Exception $e) {
-                    return [
-                        "success" => false,
-                        "message" => $e->getMessage(),
-                    ];
-                }
-            },
-            "get_list_default_generative_assets" => function () {
-                try {
-                    $defaultGenerativeAssets = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findAll();
-                    $projects = [];
-                    foreach ($defaultGenerativeAssets as $asset) {
-                        $imgUrls = [];
-                        $arrayUrl = json_decode($asset->getName());
-                        foreach ($arrayUrl as $url) {
-                            $imgUrls[] = $url;
-                        }
-                        $projects[] = [
-                            "id" => $asset->getId(),
-                            "prompt" => $asset->getPrompt(),
-                            "negativePrompt" => $asset->getNegativePrompt(),
-                            "width" => $asset->getWidth(),
-                            "height" => $asset->getHeight(),
-                            "cfgScale" => $asset->getCfgScale(),
-                            "modelName" => $asset->getModelName(),
-                            "urls" => $imgUrls,
-                        ];
-                    }
-
-                    return [
-                        "success" => true,
-                        "projects" => $projects,
-                    ];
-                } catch (Exception $e) {
-                    return [
-                        "success" => false,
-                        "message" => $e->getMessage(),
-                    ];
-                }
-            },
             "get_my_generative_assets" => function () {
                 try {
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                    $myGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user]);
-                    $assetsUrls = [];
-                    foreach ($myGenerativeAssets as $asset) {
-                        $assetsUrls[] = [
-                            "id" => $asset->getId(),
-                            "url" => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
-                            "likes" => $asset->getLikes(),
-                            "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
-                            "prompt" => $asset->getPrompt(),
-                            "negativePrompt" => $asset->getNegativePrompt(),
-                            "width" => $asset->getWidth(),
-                            "height" => $asset->getHeight(),
-                            "cfgScale" => $asset->getCfgScale(),
-                            "modelName" => $asset->getModelName(),
-                        ];
-                    }
-                    return [
-                        "success" => true,
-                        "assets" => $assetsUrls,
-                    ];
-                } catch (Exception $e) {
-                    return [
-                        "success" => false,
-                        "message" => $e->getMessage(),
-                    ];
-                }
-            },
-            "get_one_default_generative_assets" => function () {
-                try {
-                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
-                    $defaultGenerativeAsset = $this->entityManager->getRepository(GenerativeAssetsDefault::class)->findOneBy(['id' => $id]);
-
-                    if (!$defaultGenerativeAsset) {
-                        return [
-                            "success" => false,
-                            "message" => "not_found",
-                        ];
+                    $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                    $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
+                    $limit = 20;
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
+                    $assets = $this->getMyGenerativeAssetsByFilters($filter, $page, $limit, $user);
+                    $countAssets = $this->getCountGenerativeAssetsByFilters($filter, $repository, true, $user, null);
+                    $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+                    // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
+                    $likedImageIds = array_column($myLikedImages, 'id');
+                    // Ajouter l'information "isLiked" directement dans les assets
+                    foreach ($assets as &$asset) {
+                        $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
                     }
 
-                    $imgUrls = [];
-                    $arrayUrl = json_decode($defaultGenerativeAsset->getName());
-                    foreach ($arrayUrl as $url) {
-                        $imgUrls[] = $this->bucketGenerativeAssetsEndpoint . $url;
-                    }
                     return [
                         "success" => true,
-                        "assets" => [
-                            "id" => $defaultGenerativeAsset->getId(),
-                            "urls" => $imgUrls,
-                            "prompt" => $defaultGenerativeAsset->getPrompt(),
-                            "negativePrompt" => $defaultGenerativeAsset->getNegativePrompt(),
-                            "width" => $defaultGenerativeAsset->getWidth(),
-                            "height" => $defaultGenerativeAsset->getHeight(),
-                            "cfgScale" => $defaultGenerativeAsset->getCfgScale(),
-                            "modelName" => $defaultGenerativeAsset->getModelName(),
-                        ],
+                        "assets" => $assets,
+                        "length" => $countAssets
                     ];
                 } catch (Exception $e) {
                     return [
@@ -893,13 +795,34 @@ class ControllerUserAssets
             "get_public_generative_assets_per_page" => function () {
                 try {
                     $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : null;
+                    $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
                     $limit = 20;
-                    $offset = ($page - 1) * $limit;
-                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
-                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, false);
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
+                    $assets = $this->getGenerativeAssetsByFilters($filter, $page, $limit, $repository);
+                    $countAssets = $this->getCountGenerativeAssetsByFilters($filter, $repository, false, false, true);
+
+                    $myLikedImages = [];
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
+                        $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+                    
+                        // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
+                        $likedImageIds = array_column($myLikedImages, 'id');
+                    
+                        // Ajouter l'information "isLiked" directement dans les assets
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
+                        }
+                    } else {
+                        // Si l'utilisateur n'est pas connecté, aucune image n'est likée
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = false;
+                        }
+                    }
                     return [
                         "success" => true,
-                        "assets" => $assetsUrls,
+                        "assets" => $assets,
+                        "length" => $countAssets,
                     ];
                 } catch (Exception $e) {
                     return [
@@ -909,36 +832,179 @@ class ControllerUserAssets
                 }
             },
             "increment_like_generative_assets" => function () {
-                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
-                $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
-                $likes = $generativeAsset->getLikes();
-                $generativeAsset->setLikes($likes + 1);
-                $this->entityManager->persist($generativeAsset);
-                $this->entityManager->flush();
-                return [
-                    "success" => true,
-                    "likes" => $generativeAsset->getLikes(),
-                ];
-            },
-            "decrement_like_generative_assets" => function () {
-                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
-                $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
 
-                $likes = $generativeAsset->getLikes();
-                if ($likes == 0) {
+                    if (!empty($_SESSION['id'])) {
+                        // check if the image is already liked by the user
+                        $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $_SESSION['id'], 'generativeAssets' => $generativeAsset]);
+                        if (!$isImageLiked) {
+                            $likes = $generativeAsset->getLikes();
+                            $generativeAsset->setLikes($likes + 1);
+                            $this->entityManager->persist($generativeAsset);
+
+                            $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
+                            $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                            $userLikeImage = new UserLikeImage();
+                            $userLikeImage->setUser($user);
+                            $userLikeImage->setImg($generativeAsset);
+                            $userLikeImage->setLikedAt($dateNow);
+                            $this->entityManager->persist($userLikeImage);
+                            $this->entityManager->flush();
+                        }
+                    } else {
+                        $likes = $generativeAsset->getLikes();
+                        $generativeAsset->setLikes($likes + 1);
+                        $this->entityManager->persist($generativeAsset);
+                        $this->entityManager->flush();
+                    }
+
+                    return [
+                        "success" => true,
+                        "likes" => $generativeAsset->getLikes(),
+                    ];
+                } catch(Exception $e) {
                     return [
                         "success" => false,
-                        "message" => "You can't have negative likes.",
+                        "message" => $e->getMessage(),
                     ];
                 }
+            },
+            "decrement_like_generative_assets" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+    
+                    $likes = $generativeAsset->getLikes();
+                    if ($likes == 0) {
+                        return [
+                            "success" => false,
+                            "message" => "You can't have negative likes.",
+                        ];
+                    }
+    
+                    if (!empty($_SESSION['id'])) {
+                        // remove the UserLikeImage if exist
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $user, 'generativeAssets' => $generativeAsset]);
+                        if ($isImageLiked) {
+                            $this->entityManager->remove($isImageLiked);
+                            $this->entityManager->flush();
+                        }
+                    }
+    
+                    $generativeAsset->setLikes($likes - 1);
+                    $this->entityManager->persist($generativeAsset);
+                    $this->entityManager->flush();
+                    return [
+                        "success" => true,
+                        "likes" => $generativeAsset->getLikes(),
+                    ];
+                } catch(Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "synchronise_like_with_local_db" => function () {
+                try {
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $ids = array_key_exists('ids', $_POST) ? $_POST['ids'] : null;
+                        $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
+                        $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->findBy(['user' => $user]);
 
-                $generativeAsset->setLikes($likes - 1);
-                $this->entityManager->persist($generativeAsset);
-                $this->entityManager->flush();
-                return [
-                    "success" => true,
-                    "likes" => $generativeAsset->getLikes(),
-                ];
+                        foreach ($ids as $id) {
+                            // check if the image is in the $myLikedImages with the id
+                            $isLiked = false;
+                            foreach ($myLikedImages as $myLikedImage) {
+                                if ($myLikedImage->getImage()->getId() == $id) {
+                                    $isLiked = true;
+                                }
+                            }
+
+                            if (!$isLiked) {
+                                $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                                if ($generativeAsset->getLikes() == 0) {
+                                    $generativeAsset->setLikes(1);
+                                    $this->entityManager->persist($generativeAsset);
+                                    $this->entityManager->flush();
+                                }
+                                // check if the image is already liked by the user
+                                $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $user, 'generativeAssets' => $generativeAsset]);
+                                if (!$isImageLiked) {
+                                    $userLikeImage = new UserLikeImage();
+                                    $userLikeImage->setUser($user);
+                                    $userLikeImage->setImg($generativeAsset);
+                                    $userLikeImage->setLikedAt($dateNow);
+                                    $this->entityManager->persist($userLikeImage);
+                                    $this->entityManager->flush();
+                                }
+                            }
+                        }
+                    } else {
+                        return [
+                            "success" => false,
+                            "message" => "not_connected",
+                        ];
+                    }
+                } catch(Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "is_image_liked_by_user" => function () {
+                try {
+                    $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                        $isImageLiked = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $user, 'generativeAssets' => $generativeAsset]);
+                        $liked = false;
+                        if ($isImageLiked) {
+                            $liked = true;
+                        }
+                        return [
+                            "success" => true,
+                            "isLiked" => $liked,
+                        ];
+                    } else {
+                        return [
+                            "success" => false,
+                            "message" => "not_connected",
+                        ];
+                    }
+                } catch(Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_list_of_my_favorite_generative_assets_per_page" => function () {
+                try {
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $page = array_key_exists('page', $_POST) ? htmlspecialchars($_POST['page']) : 1;
+                    $limit = 20;
+                    $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
+
+                    $assetsUrls = $this->getMyFavoriteGenerativeAssetsByFilters($filter, $page, $limit, $user);
+                    $countAssets = $this->entityManager->getRepository(UserLikeImage::class)->getCountOfMyFavoriteSince($user, null);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                        "length" => $countAssets
+                    ];
+                } catch(Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
             },
             "get_list_of_non_reviewed_generative_assets" => function () {
                 // get fetch data 
@@ -963,10 +1029,10 @@ class ControllerUserAssets
             },
             "get_total_page_of_non_reviewed_generative_assets" => function () {
                 try {
-                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => false]);
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getCountOfNonReviewedAssets();
                     return [
                         "success" => true,
-                        "totalPages" => count($generativeAssets),
+                        "totalPages" => $generativeAssets,
                     ];
                 } catch (Exception $e) {
                     return [
@@ -999,11 +1065,30 @@ class ControllerUserAssets
                 }
             },
             "get_generative_assets_length" => function () {
+                $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
                 try {
-                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => true]);
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
+                    $count = $this->getCountGenerativeAssetsByFilters($filter, $repository, false, false, null);
                     return [
                         "success" => true,
-                        "length" => count($publicGenerativeAssets)
+                        "length" => $count
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_my_assets_length" => function () {
+                $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                $filter = array_key_exists('filter', $_POST) ? htmlspecialchars($_POST['filter']) : null;
+                try {
+                    $repository = $this->entityManager->getRepository(GenerativeAssets::class);
+                    $count = $this->getCountGenerativeAssetsByFilters($filter, $repository, true, $user, null);
+                    return [
+                        "success" => true,
+                        "length" => $count
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1066,7 +1151,6 @@ class ControllerUserAssets
             "get_public_generative_assets_by_id" => function () {
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
-
                     $asset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
                     $creator = [];
                     if ($asset->getUser() != null) {
@@ -1094,6 +1178,48 @@ class ControllerUserAssets
                             "modelName" => $asset->getModelName(),
                             "creator" => $creator,
                         ]
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_public_generative_assets_by_ids" => function () {
+                try {
+                    $ids = array_key_exists('ids', $_POST) ? $_POST['ids'] : null;
+                    $asset = $this->entityManager->getRepository(GenerativeAssets::class)->findByArrayOfIds($ids);
+                    $assets = [];
+                    foreach ($asset as $a) {
+                        $creator = [];
+                        if ($a->getUser() != null) {
+                            $creator['id'] = $a->getUser()->getId();
+                            $creator['firstname'] = $a->getUser()->getFirstName();
+                            $creator['surname'] = $a->getUser()->getSurname();
+                            $creator['picture'] = $a->getUser()->getPicture();
+                        } else {
+                            $creator['id'] = null;
+                            $creator['firstname'] = "Anonymous";
+                            $creator['surname'] = "Anonymous";
+                        }
+                        $assets[] = [
+                            "id" => $a->getId(),
+                            "url" => $this->bucketGenerativeAssetsEndpoint . $a->getName(),
+                            "likes" => $a->getLikes(),
+                            "createdAt" => $a->getCreatedAt()->format('Y-m-d H:i:s'),
+                            "prompt" => $a->getPrompt(),
+                            "negativePrompt" => $a->getNegativePrompt(),
+                            "width" => (int)$a->getWidth(),
+                            "height" => (int)$a->getHeight(),
+                            "cfgScale" => $a->getCfgScale(),
+                            "modelName" => $a->getModelName(),
+                            "creator" => $creator,
+                        ];
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => $assets,
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1178,10 +1304,210 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "get_competition_assets_by_key" => function () {
+                try {
+                    $key = array_key_exists('key', $_POST) ? htmlspecialchars($_POST['key']) : null;
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsWithPrefix($key);
+                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_my_competition_assets_by_key" => function () {
+                try {
+                    $key = array_key_exists('key', $_POST) ? htmlspecialchars($_POST['key']) : null;
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getUserAssetsWithPrefix($key, $user);
+                    $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
     }
+
+
+    function getGenerativeAssetsByFilters($filter = null, $page = 1, $limit = 20, $repository)
+    {
+        $offset = ($page - 1) * $limit;
+        
+        $publicGenerativeAssets = null;
+        switch ($filter) {
+            case 'most-recent':
+                $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                break;
+            case 'most-popular':
+                $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['likes' => 'DESC'], $limit, $offset);
+                break;
+            case 'most-popular-week':
+                $publicGenerativeAssets = $repository->getAllMostPopularByCreatedAt($this->oneWeekAgo, $limit, $offset);
+                break;
+            case 'most-popular-month':
+                $publicGenerativeAssets = $repository->getAllMostPopularByCreatedAt($this->oneMonthAgo, $limit, $offset);
+                break;
+            default:
+                $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
+                break;
+        }
+        
+        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+        return $assetsUrls;
+    }
+
+
+    function getMyGenerativeAssetsByFilters($filter = null, $page = 1, $limit = 20, $user)
+    {
+        $offset = ($page - 1) * $limit;
+        $publicGenerativeAssets = null;
+        switch ($filter) {
+            case 'most-recent':
+                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user], ['createdAt' => 'DESC'], $limit, $offset);
+                break;
+            case 'most-popular':
+                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user], ['likes' => 'DESC'], $limit, $offset);
+                break;
+            case 'most-popular-week':
+                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getMyMostPopularByCreatedAt($this->oneWeekAgo, $limit, $offset, $user);
+                break;
+            case 'most-popular-month':
+                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getMyMostPopularByCreatedAt($this->oneMonthAgo, $limit, $offset, $user);
+                break;
+            default:
+                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user], ['createdAt' => 'DESC'], $limit, $offset);
+                break;
+        }
+        
+        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+        return $assetsUrls;
+    }
+
+    /* 
+        * Get the count of generative assets by filters
+        * @param $filters string
+        * @param $page int
+        * @param $limit int
+        * @param $repository object
+        * @param $mine bool
+        * @param $user object
+    */
+    function getCountGenerativeAssetsByFilters($filter = null, $repository, $mine = false, $user = null, $isPublic = true)
+    {
+        $count = 0;
+        switch ($filter) {
+            case 'most-recent':
+                $count = $repository->getCountAll(false, false, $mine, $user, $isPublic);
+                break;
+            case 'most-popular':
+                $count = $repository->getCountAll(false, true, $mine, $user, $isPublic);
+                break;
+            case 'most-popular-week':
+                $count = $repository->getCountAllMostPopularByCreatedAt($this->oneWeekAgo, $mine, $user, $isPublic);
+                break;
+            case 'most-popular-month':
+                $count = $repository->getCountAllMostPopularByCreatedAt($this->oneMonthAgo, $mine, $user, $isPublic);
+                break;
+            default:
+                $count = $repository->getCountAll(false, false, $mine, $user, $isPublic);
+                break;
+        }
+        
+        return $count;
+    }
+
+
+    function getMyFavoriteGenerativeAssetsByFilters($filter = null, $page = 1, $limit = 20, $user)
+    {
+        $offset = ($page - 1) * $limit;
+        $repository = $this->entityManager->getRepository(UserLikeImage::class);
+
+        $likedImages = [];
+
+        $assetsIds = $repository->getIdsImagesOfMyFavorite($user);
+        $ids = [];
+        foreach ($assetsIds as $assetId) {
+            $ids[] = $assetId->getImg()->getId();
+        }
+
+        if (empty($ids)) {
+            return [];
+        }
+
+        switch ($filter) {
+            case 'most-recent':
+                //$likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, null);
+                break;
+            case 'most-popular':
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularFromArray($limit, $offset, $ids);
+                break;
+            case 'most-popular-week':
+                /* $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneWeekAgo, $limit, $offset)); */
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, $this->oneWeekAgo);
+                break;
+            case 'most-popular-month':
+                /* $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneMonthAgo, $limit, $offset)); */
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, $this->oneMonthAgo);
+                break;
+            default:
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, null);
+                break;
+        }
+
+        $assetsUrls = $this->manageGenerativeAssets($likedImages, true);
+        return $assetsUrls;
+    }
+
+    function processReturnFromFavorite($array = null) {
+        $likedImages = [];
+        foreach ($array as $asset) {
+            $likedImages[] = $asset->getImg();
+        }
+        return $likedImages;
+    }
+
+
+/*     
+    function getCountOfMyFavoriteGenerativeAssetsByFilters($filter = null, $user)
+    {
+        $repository = $this->entityManager->getRepository(UserLikeImage::class)->getCountOfMyFavoriteSince($user, null);
+        $count = null;
+        switch ($filter) {
+            case 'most-recent':
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
+                break;
+            case 'most-popular':
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
+                break;
+            case 'most-popular-week':
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
+                break;
+            case 'most-popular-month':
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
+                break;
+            default:
+                $count = $repository->getCountOfMyFavoriteSince($user, null);
+                break;
+        }
+
+        return $count;
+    } 
+*/
 
     function getGenerativeAssetsFromScaleway(string $key)
     {
@@ -1198,6 +1524,7 @@ class ControllerUserAssets
 
     function manageGenerativeAssets(array $generativeAssets = [], bool $includeMine = false)
     {
+        $assetsUrls = [];
         foreach ($generativeAssets as $asset) {
             if ($asset->getIsPublic() == false && $includeMine == false) {
                 continue;
