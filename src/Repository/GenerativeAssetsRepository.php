@@ -149,10 +149,8 @@ class GenerativeAssetsRepository extends EntityRepository
         $queryBuilder = $this->getEntityManager()->createQueryBuilder();
         $queryBuilder->select('asset')
             ->from(GenerativeAssets::class, 'asset')
-            ->where('asset.isPublic = :isPublic')
             ->andWhere($queryBuilder->expr()->in('asset.id', $ids))
             ->orderBy('asset.likes', 'DESC')
-            ->setParameter('isPublic', true)
             ->setMaxResults($limit)
             ->setFirstResult($offset);
 
