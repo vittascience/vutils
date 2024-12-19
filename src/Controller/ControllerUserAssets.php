@@ -682,31 +682,47 @@ class ControllerUserAssets
                         }
                     }
 
-                    $generativeAsset = new GenerativeAssets();
-                    $generativeAsset->setName($name);
-                    $generativeAsset->setUser($userCheck);
-                    $generativeAsset->setCreatedAt($dateNow);
-                    $generativeAsset->setPrompt($prompt);
-                    $generativeAsset->setIpAddress($ipAddress);
-                    $generativeAsset->setIsPublic(false);
-                    $generativeAsset->setNegativePrompt($negativePrompt);
-                    $generativeAsset->setLang($lng);
-                    $generativeAsset->setWidth($width);
-                    $generativeAsset->setHeight($height);
-                    $generativeAsset->setCfgScale($cfgScale);
-                    $generativeAsset->setLikes(0);
-                    $generativeAsset->setModelName($modelName);
-                    $generativeAsset->setAdminReview(false);
-                    $generativeAsset->setCreationSteps($creationSteps);
+                    $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
+                    if ($isDuplicate) {
+                        foreach ($isDuplicate as $duplicate) {
+                            $duplicate->setCreationSteps($creationSteps);
+                            $this->entityManager->persist($duplicate);
+                        }
+                        $this->entityManager->flush();
+
+                        return [
+                            "success" => true,
+                            "message" => "generative_asset_updated",
+                        ];
+                    } else {
+                        $generativeAsset = new GenerativeAssets();
+                        $generativeAsset->setName($name);
+                        $generativeAsset->setUser($userCheck);
+                        $generativeAsset->setCreatedAt($dateNow);
+                        $generativeAsset->setPrompt($prompt);
+                        $generativeAsset->setIpAddress($ipAddress);
+                        $generativeAsset->setIsPublic(false);
+                        $generativeAsset->setNegativePrompt($negativePrompt);
+                        $generativeAsset->setLang($lng);
+                        $generativeAsset->setWidth($width);
+                        $generativeAsset->setHeight($height);
+                        $generativeAsset->setCfgScale($cfgScale);
+                        $generativeAsset->setLikes(0);
+                        $generativeAsset->setModelName($modelName);
+                        $generativeAsset->setAdminReview(false);
+                        $generativeAsset->setCreationSteps($creationSteps);
+    
+    
+                        $this->entityManager->persist($generativeAsset);
+                        $this->entityManager->flush();
+    
+                        return [
+                            "success" => true,
+                            "message" => "generative_asset_created",
+                        ];
+                    }
 
 
-                    $this->entityManager->persist($generativeAsset);
-                    $this->entityManager->flush();
-
-                    return [
-                        "success" => true,
-                        "message" => "generative_asset_created",
-                    ];
                 } catch (Exception $e) {
                     return [
                         "success" => false,

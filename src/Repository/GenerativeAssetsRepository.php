@@ -33,6 +33,30 @@ class GenerativeAssetsRepository extends EntityRepository
         return $isDuplicate;
     }
 
+
+    public function getAllAssetsIfDuplicateExists(String $prompt, ?String $negativePrompt, $width, $height, $scale, $modelName)
+    {
+        $isDuplicate = $this->getEntityManager()->createQueryBuilder()
+                ->select('g')
+                ->from(GenerativeAssets::class, 'g')
+                ->where('g.prompt = :prompt')
+                ->andWhere('g.negativePrompt = :negativePrompt')
+                ->andWhere('g.width = :width')
+                ->andWhere('g.height = :height')
+                ->andWhere('g.cfgScale = :scale')
+                ->andWhere('g.modelName = :modelName')
+                ->andWhere('g.creationSteps IS NOT NULL') // Ajout de la condition IS NOT NULL
+                ->setParameter('prompt', $prompt)
+                ->setParameter('negativePrompt', $negativePrompt)
+                ->setParameter('width', $width)
+                ->setParameter('height', $height)
+                ->setParameter('scale', $scale)
+                ->setParameter('modelName', $modelName)
+                ->getQuery()
+                ->getResult();
+        
+        return $isDuplicate;
+    }
     
     public function getAllAssetsWithPrefix(String $prefix, User $user = null) {
         $prefixWithPercent = '%' . $prefix . '%';
