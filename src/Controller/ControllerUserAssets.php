@@ -13,6 +13,7 @@ use OpenStack\Identity\v3\Api;
 use Aws\S3\Exception\S3Exception;
 use Utils\Entity\GenerativeAssets;
 use Utils\Entity\UserLikeImage;
+use Utils\Entity\Competitions;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
 
@@ -663,6 +664,8 @@ class ControllerUserAssets
                     $cfgScale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
                     $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
                     $creationSteps = array_key_exists('creationSteps', $_POST) ? htmlspecialchars($_POST['creationSteps']) : null;
+                    $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;                   
+                    $isCompetition = $isCompetition == 'false' ? 0  : 1;
 
                     $lng = $_COOKIE['lang'] ?? 'en';
                     if (!$name) {
@@ -698,7 +701,7 @@ class ControllerUserAssets
                     $generativeAsset->setModelName($modelName);
                     $generativeAsset->setAdminReview(false);
                     $generativeAsset->setCreationSteps($creationSteps);
-
+                    $generativeAsset->setIsCompetition($isCompetition);
 
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
@@ -831,6 +834,43 @@ class ControllerUserAssets
                     ];
                 }
             },
+            ,
+            "get_best_assets_of_this_week" => function () {
+                try {
+                    $limit = 10;
+                    $weekOffset = 1;
+                    $monday = array_key_exists('monday', $_POST) ? htmlspecialchars($_POST['monday']) : null;
+                    $assets = $this->getBestAssetsOfThisWeek($monday, $limit);
+                    $myLikedImages = [];
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
+                        $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+
+                        // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
+                        $likedImageIds = array_column($myLikedImages, 'id');
+
+                        // Ajouter l'information "isLiked" directement dans les assets
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
+                        }
+                    } else {
+                        // Si l'utilisateur n'est pas connecté, aucune image n'est likée
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = false;
+                        }
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => $assets,
+                        "length" => count($assets),
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
             "increment_like_generative_assets" => function () {
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
@@ -864,7 +904,7 @@ class ControllerUserAssets
                         "success" => true,
                         "likes" => $generativeAsset->getLikes(),
                     ];
-                } catch(Exception $e) {
+                } catch (Exception $e) {
                     return [
                         "success" => false,
                         "message" => $e->getMessage(),
@@ -901,7 +941,7 @@ class ControllerUserAssets
                         "success" => true,
                         "likes" => $generativeAsset->getLikes(),
                     ];
-                } catch(Exception $e) {
+                } catch (Exception $e) {
                     return [
                         "success" => false,
                         "message" => $e->getMessage(),
@@ -950,7 +990,7 @@ class ControllerUserAssets
                             "message" => "not_connected",
                         ];
                     }
-                } catch(Exception $e) {
+                } catch (Exception $e) {
                     return [
                         "success" => false,
                         "message" => $e->getMessage(),
@@ -978,7 +1018,7 @@ class ControllerUserAssets
                             "message" => "not_connected",
                         ];
                     }
-                } catch(Exception $e) {
+                } catch (Exception $e) {
                     return [
                         "success" => false,
                         "message" => $e->getMessage(),
@@ -999,7 +1039,7 @@ class ControllerUserAssets
                         "assets" => $assetsUrls,
                         "length" => $countAssets
                     ];
-                } catch(Exception $e) {
+                } catch (Exception $e) {
                     return [
                         "success" => false,
                         "message" => $e->getMessage(),
@@ -1337,6 +1377,56 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "set_private_generative_asset" => function () {
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+
+                try {
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                    $generativeAsset->setAdminReview(true);
+                    $generativeAsset->setIsPublic(false);
+                    $generativeAsset->setLikes(0);
+                    $generativeAsset->setUser(null);
+
+                    if ($_SESSION && array_key_exists('id', $_SESSION)) {
+                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                        $generativeAsset->setUser($user);
+                    }
+
+                    $userLikeImage = $this->entityManager->getRepository(UserLikeImage::class)->findBy(['generativeAssets' => $generativeAsset]);
+                    if ($userLikeImage) {
+                        foreach ($userLikeImage as $like) {
+                            $this->entityManager->remove($like);
+                        }
+                    }
+                    
+                    $this->entityManager->persist($generativeAsset);
+                    $this->entityManager->flush();
+                    return [
+                        "success" => true,
+                        "message" => "updated",
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_all_competition" => function () {
+                try {
+                    $competition = $this->entityManager->getRepository(Competitions::class)->getAllCompetitions();
+              
+                    return [
+                        "success" => true,
+                        "assets" => $competition,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
@@ -1479,6 +1569,20 @@ class ControllerUserAssets
             $likedImages[] = $asset->getImg();
         }
         return $likedImages;
+    }
+
+    public function getBestAssetsOfThisWeek($monday, int $limit = 10, int $offset = 0){
+        // Calculer la date de début et de fin de la semaine cible
+        $startOfWeek = new \DateTime($monday);
+        // $startOfWeek->modify('monday this week 00:00:00');
+        $endOfWeek = clone $startOfWeek;
+        $endOfWeek->modify('sunday this week 23:59:59');
+        $publicGenerativeAssets = [];
+        
+        $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByWeek($startOfWeek, $endOfWeek, true, $limit, $offset);
+        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+        return $assetsUrls;
+        
     }
 
 
