@@ -834,7 +834,6 @@ class ControllerUserAssets
                     ];
                 }
             },
-            ,
             "get_best_assets_of_this_week" => function () {
                 try {
                     $limit = 10;
