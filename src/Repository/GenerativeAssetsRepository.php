@@ -175,4 +175,21 @@ class GenerativeAssetsRepository extends EntityRepository
 
         return $queryBuilder->getQuery()->getResult();   
     }
+
+    public function findAssetsByWeek(\DateTime $startOfWeek, \DateTime $endOfWeek, bool $isPublic, $limit, $offset){
+        $queryBuilder = $this->getEntityManager()->createQueryBuilder();
+        $queryBuilder->select('asset')
+        ->from(GenerativeAssets::class, 'asset')
+        ->where('asset.isPublic = :isPublic')
+        ->andWhere('asset.user IS NOT NULL') //not anonymous
+        ->andWhere('asset.createdAt BETWEEN :start AND :end')
+        ->orderBy('asset.likes', 'DESC')
+        ->setParameter('isPublic', $isPublic)
+        ->setParameter('start', $startOfWeek)
+        ->setParameter('end', $endOfWeek)
+        ->setMaxResults($limit)
+        ->setFirstResult($offset);
+        
+        return $queryBuilder->getQuery()->getResult();
+    }
 }
