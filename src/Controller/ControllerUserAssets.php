@@ -665,7 +665,7 @@ class ControllerUserAssets
                     $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
                     $creationSteps = array_key_exists('creationSteps', $_POST) ? htmlspecialchars($_POST['creationSteps']) : null;
                     $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;                   
-                    $isCompetition = $isCompetition == 'false' ? 0  : 1;
+                    $isCompetition = $isCompetition == 'false' ? 0 : 1;
 
                     $lng = $_COOKIE['lang'] ?? 'en';
                     if (!$name) {
@@ -685,13 +685,15 @@ class ControllerUserAssets
                         }
                     }
 
+                    $isPublic = $userCheck ? false : true;
+
                     $generativeAsset = new GenerativeAssets();
                     $generativeAsset->setName($name);
                     $generativeAsset->setUser($userCheck);
                     $generativeAsset->setCreatedAt($dateNow);
                     $generativeAsset->setPrompt($prompt);
                     $generativeAsset->setIpAddress($ipAddress);
-                    $generativeAsset->setIsPublic(false);
+                    $generativeAsset->setIsPublic($isPublic);
                     $generativeAsset->setNegativePrompt($negativePrompt);
                     $generativeAsset->setLang($lng);
                     $generativeAsset->setWidth($width);
