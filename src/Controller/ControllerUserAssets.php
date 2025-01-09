@@ -685,7 +685,7 @@ class ControllerUserAssets
                         }
                     }
 
-                    $isPublic = $userCheck ? false : true;
+                    $isPublic = $userCheck ? true : false;
 
                     $generativeAsset = new GenerativeAssets();
                     $generativeAsset->setName($name);
@@ -1382,23 +1382,28 @@ class ControllerUserAssets
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
 
                 try {
-                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
-                    $generativeAsset->setAdminReview(true);
-                    $generativeAsset->setIsPublic(false);
-                    $generativeAsset->setLikes(0);
-                    $generativeAsset->setUser(null);
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id, 'user' => $user]);
 
-                    if ($_SESSION && array_key_exists('id', $_SESSION)) {
-                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                        $generativeAsset->setUser($user);
+                    if (!$generativeAsset) {
+                        return [
+                            "success" => false,
+                            "message" => "not_found",
+                        ];
                     }
 
                     $userLikeImage = $this->entityManager->getRepository(UserLikeImage::class)->findBy(['generativeAssets' => $generativeAsset]);
                     if ($userLikeImage) {
-                        foreach ($userLikeImage as $like) {
-                            $this->entityManager->remove($like);
-                        }
+                        return [
+                            "success" => false,
+                            "message" => "image_already_liked",
+                        ];
                     }
+
+                    $generativeAsset->setAdminReview(true);
+                    $generativeAsset->setIsPublic(false);
+                    $generativeAsset->setLikes(0);
+                    $generativeAsset->setUser(null);
                     
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
