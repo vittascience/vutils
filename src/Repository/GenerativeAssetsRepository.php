@@ -181,8 +181,9 @@ class GenerativeAssetsRepository extends EntityRepository
         $queryBuilder->select('asset')
         ->from(GenerativeAssets::class, 'asset')
         ->where('asset.isPublic = :isPublic')
-        ->andWhere('asset.user IS NOT NULL') //not anonymous
+        ->andWhere('asset.user IS NOT NULL')
         ->andWhere('asset.createdAt BETWEEN :start AND :end')
+        ->andWhere('asset.isCompetition = 1')
         ->orderBy('asset.likes', 'DESC')
         ->setParameter('isPublic', $isPublic)
         ->setParameter('start', $startOfWeek)
