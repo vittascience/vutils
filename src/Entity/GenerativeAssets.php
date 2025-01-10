@@ -114,6 +114,12 @@ class GenerativeAssets implements \JsonSerializable
     private $creationSteps;
 
     /**
+     * @ORM\Column(name="is_competition", type="boolean", nullable=true)
+     * @var boolean
+     */
+    private $isCompetition;
+
+    /**
      * @return Integer
      */
     public function getId(): ?int
@@ -300,6 +306,17 @@ class GenerativeAssets implements \JsonSerializable
         $this->creationSteps = $creationSteps;
         return $this;
     }
+
+    public function getIsCompetition(): ?bool
+    {
+        return $this->isCompetition;
+    }
+
+    public function setIsCompetition(bool $isCompetition): self
+    {
+        $this->isCompetition = $isCompetition;
+        return $this;
+    }
     
     public function jsonSerialize()
     {
@@ -319,7 +336,8 @@ class GenerativeAssets implements \JsonSerializable
             'isPublic' => $this->isPublic,
             'modelName' => $this->modelName,
             'adminReview' => $this->adminReview,
-            'creationSteps' => $this->creationSteps
+            'creationSteps' => $this->creationSteps,
+            'isCompetition' => $this->isCompetition
         ];
     }
 
