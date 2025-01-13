@@ -685,33 +685,47 @@ class ControllerUserAssets
                         }
                     }
 
-                    $isPublic = $userCheck ? true : false;
+                    $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
+                    if ($isDuplicate) {
+                        foreach ($isDuplicate as $duplicate) {
+                            $duplicate->setCreationSteps($creationSteps);
+                            $this->entityManager->persist($duplicate);
+                        }
+                        $this->entityManager->flush();
 
-                    $generativeAsset = new GenerativeAssets();
-                    $generativeAsset->setName($name);
-                    $generativeAsset->setUser($userCheck);
-                    $generativeAsset->setCreatedAt($dateNow);
-                    $generativeAsset->setPrompt($prompt);
-                    $generativeAsset->setIpAddress($ipAddress);
-                    $generativeAsset->setIsPublic($isPublic);
-                    $generativeAsset->setNegativePrompt($negativePrompt);
-                    $generativeAsset->setLang($lng);
-                    $generativeAsset->setWidth($width);
-                    $generativeAsset->setHeight($height);
-                    $generativeAsset->setCfgScale($cfgScale);
-                    $generativeAsset->setLikes(0);
-                    $generativeAsset->setModelName($modelName);
-                    $generativeAsset->setAdminReview(false);
-                    $generativeAsset->setCreationSteps($creationSteps);
-                    $generativeAsset->setIsCompetition($isCompetition);
+                        return [
+                            "success" => true,
+                            "message" => "generative_asset_updated",
+                        ];
+                    } else {
+                        $isPublic = $userCheck ? true : false;
 
-                    $this->entityManager->persist($generativeAsset);
-                    $this->entityManager->flush();
-
-                    return [
-                        "success" => true,
-                        "message" => "generative_asset_created",
-                    ];
+                        $generativeAsset = new GenerativeAssets();
+                        $generativeAsset->setName($name);
+                        $generativeAsset->setUser($userCheck);
+                        $generativeAsset->setCreatedAt($dateNow);
+                        $generativeAsset->setPrompt($prompt);
+                        $generativeAsset->setIpAddress($ipAddress);
+                        $generativeAsset->setIsPublic($isPublic);
+                        $generativeAsset->setNegativePrompt($negativePrompt);
+                        $generativeAsset->setLang($lng);
+                        $generativeAsset->setWidth($width);
+                        $generativeAsset->setHeight($height);
+                        $generativeAsset->setCfgScale($cfgScale);
+                        $generativeAsset->setLikes(0);
+                        $generativeAsset->setModelName($modelName);
+                        $generativeAsset->setAdminReview(false);
+                        $generativeAsset->setCreationSteps($creationSteps);
+                        $generativeAsset->setIsCompetition($isCompetition);
+    
+                        $this->entityManager->persist($generativeAsset);
+                        $this->entityManager->flush();
+    
+                        return [
+                            "success" => true,
+                            "message" => "generative_asset_created",
+                        ];
+                    }
                 } catch (Exception $e) {
                     return [
                         "success" => false,
@@ -1285,26 +1299,21 @@ class ControllerUserAssets
                 }
                 try {
                     $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
-                    if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
+                    $generatedUUID = $this->generateUUIDv4();
 
-                        $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
-                        $newAssets = new GenerativeAssets();
-                        $newAssets->setPrompt($isDuplicate->getPrompt());
-                        $newAssets->setName($isDuplicate->getName());
-                        $newAssets->setNegativePrompt($isDuplicate->getNegativePrompt());
-                        $newAssets->setWidth($isDuplicate->getWidth());
-                        $newAssets->setHeight($isDuplicate->getHeight());
-                        $newAssets->setCfgScale($isDuplicate->getCfgScale());
-                        $newAssets->setModelName($isDuplicate->getModelName());
-                        $newAssets->setUser($user);
-                        $newAssets->setCreatedAt(new \DateTime('now', new \DateTimeZone('Europe/Paris')));
-                        $newAssets->setIsPublic(false);
-                        $newAssets->setLikes(0);
-                        $newAssets->setAdminReview(false);
-                        $newAssets->setLang($_COOKIE['lang'] ?? 'en');
-                        $newAssets->setCreationSteps($isDuplicate->getCreationSteps());
-                        $this->entityManager->persist($newAssets);
-                        $this->entityManager->flush();
+                    if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
+                        $_SESSION["assets_to_duplicate"] = [
+                            "uuid" => $generatedUUID,
+                            "id" => $isDuplicate->getId(),
+                        ];
+
+                        return [
+                            "success" => true,
+                            "isDuplicate" => true,
+                            "data" => ["creationSteps" => $isDuplicate->getCreationSteps()],
+                            "uuid" => $generatedUUID,
+                            "logged" => true,
+                        ];
                     }
 
                     if ($isDuplicate) {
@@ -1312,6 +1321,7 @@ class ControllerUserAssets
                             "success" => true,
                             "isDuplicate" => true,
                             "data" => ["creationSteps" => $isDuplicate->getCreationSteps()],
+                            "logged" => false,
                         ];
                     } else {
                         return [
@@ -1326,6 +1336,66 @@ class ControllerUserAssets
                         "message" => $e->getMessage(),
                     ];
                 }
+            },
+            "validate_duplicate_asset" => function () {
+                $uuid = array_key_exists('uuid', $_POST) ? htmlspecialchars($_POST['uuid']) : null;
+                if (!$uuid) {
+                    return [
+                        "success" => false,
+                        "message" => "missing_data",
+                    ];
+                }
+
+                if (!$_SESSION || !array_key_exists('id', $_SESSION)) {
+                    return [
+                        "success" => false,
+                        "message" => "not_connected",
+                    ];
+                }
+
+                if (!$_SESSION || !array_key_exists('assets_to_duplicate', $_SESSION)) {
+                    return [
+                        "success" => false,
+                        "message" => "no_duplicate",
+                    ];
+                }
+
+                if ($_SESSION['assets_to_duplicate']['uuid'] != $uuid) {
+                    return [
+                        "success" => false,
+                        "message" => "wrong_uuid",
+                    ];
+                }
+
+                $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $_SESSION['assets_to_duplicate']['id']]);
+
+                $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                $newAssets = new GenerativeAssets();
+                $newAssets->setPrompt($isDuplicate->getPrompt());
+                $newAssets->setName($isDuplicate->getName());
+                $newAssets->setNegativePrompt($isDuplicate->getNegativePrompt());
+                $newAssets->setWidth($isDuplicate->getWidth());
+                $newAssets->setHeight($isDuplicate->getHeight());
+                $newAssets->setCfgScale($isDuplicate->getCfgScale());
+                $newAssets->setModelName($isDuplicate->getModelName());
+                $newAssets->setUser($user);
+                $newAssets->setCreatedAt(new \DateTime('now', new \DateTimeZone('Europe/Paris')));
+                $newAssets->setIsPublic(false);
+                $newAssets->setLikes(0);
+                $newAssets->setAdminReview(false);
+                $newAssets->setLang($_COOKIE['lang'] ?? 'en');
+                $newAssets->setCreationSteps($isDuplicate->getCreationSteps());
+                $this->entityManager->persist($newAssets);
+                $this->entityManager->flush();
+
+                unset($_SESSION['assets_to_duplicate']);
+
+                return [
+                    "success" => true,
+                    "message" => "duplicated",
+                    "id" => $newAssets->getId(),
+                    
+                ];
             },
             "get_concours_generative_assets_per_page" => function () {
                 try {
@@ -1832,5 +1902,18 @@ class ControllerUserAssets
                 "message" => "You must be logged in to access this feature.",
             ];
         }
+    }
+
+
+    private function generateUUIDv4() {
+        // Générer 16 octets aléatoires
+        $data = random_bytes(16);
+    
+        // Modifier les bits pour correspondre à l'UUID version 4
+        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40); // Version 4
+        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80); // Variante RFC 4122
+    
+        // Convertir en format UUID
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }
