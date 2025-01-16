@@ -13,7 +13,8 @@ class UserAssetsRepository extends EntityRepository
             ->from("Utils\Entity\UserAssets", 'ua')
             ->where('ua.user = :user')
             ->andWhere('ua.link LIKE :key')
-            ->setParameters(['user' => $user, 'key' => $key . '%'])
+            ->setParameter('user', $user)
+            ->setParameter('key', $key . '%')
             ->getQuery()
             ->getResult();
     }
@@ -24,7 +25,7 @@ class UserAssetsRepository extends EntityRepository
             ->from("Utils\Entity\UserAssets", 'ua')
             ->where('ua.link LIKE :key')
             ->andWhere('ua.isPublic = 1')
-            ->setParameters(['key' => $key . '%'])
+            ->setParameter('key', $key . '%')
             ->getQuery()
             ->getResult();
     }
@@ -36,7 +37,8 @@ class UserAssetsRepository extends EntityRepository
             ->from("Utils\Entity\UserAssets", 'ua')
             ->where('ua.user = :user')
             ->andWhere('ua.link LIKE :key')
-            ->setParameters(['user' => $user, 'key' => $key . '%'])
+            ->setParameter('user', $user)
+            ->setParameter('key', $key . '%')
             ->getQuery()
             ->getResult();
 
