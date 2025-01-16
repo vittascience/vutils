@@ -4,128 +4,73 @@ namespace Utils\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Entity(repositoryClass="Utils\Repository\LanguageRepository")
- * @ORM\Table(name="lang")
- */
-class Language{
-
-    /** 
-     * @ORM\Id
-     * @ORM\Column(type="integer")
-     * @ORM\GeneratedValue
-     */
+#[ORM\Entity(repositoryClass: "Utils\Repository\LanguageRepository")]
+#[ORM\Table(name: "lang")]
+class Language
+{
+    #[ORM\Id]
+    #[ORM\Column(type: "integer")]
+    #[ORM\GeneratedValue]
     private $id;
 
-    /**
-     * @ORM\Column(name="name", type="string", length=250, nullable=false)
-     * @var string
-     */
-    private $name;
+    #[ORM\Column(name: "name", type: "string", length: 250, nullable: false)]
+    private string $name;
 
-    /**
-     * @ORM\Column(name="langcode", type="string", length=2, nullable=false)
-     */
-    private $langCode;
+    #[ORM\Column(name: "langcode", type: "string", length: 2, nullable: false)]
+    private string $langCode;
 
-    /**
-     * @ORM\Column(name="path", type="string", length=250, nullable=false)
-     */
-    private $path;
+    #[ORM\Column(name: "path", type: "string", length: 250, nullable: false)]
+    private string $path;
 
-    /**
-     * @ORM\Column(name="available", type="integer", length=1, nullable=false)
-     */
-    private $available;
+    #[ORM\Column(name: "available", type: "integer", length: 1, nullable: false)]
+    private int $available;
 
-
-    /**
-     * Get the value of id
-     */ 
     public function getId()
     {
         return $this->id;
     }
 
-    /**
-     * Get the value of name
-     *
-     * @return  string
-     */ 
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
 
-    /**
-     * Set the value of name
-     *
-     * @return  self
-     */ 
-    public function setName($name)
+    public function setName(string $name): self
     {
         $this->name = $name;
-
         return $this;
     }
 
-    /**
-     * Get the value of langCode
-     */ 
-    public function getLangCode()
+    public function getLangCode(): string
     {
         return $this->langCode;
     }
 
-    /**
-     * Set the value of langCode
-     *
-     * @return  self
-     */ 
-    public function setLangCode($langCode)
+    public function setLangCode(string $langCode): self
     {
         $this->langCode = $langCode;
-
         return $this;
     }
 
-    /**
-     * Get the value of path
-     */ 
-    public function getPath()
+    public function getPath(): string
     {
         return $this->path;
     }
 
-    /**
-     * Set the value of path
-     *
-     * @return  self
-     */ 
-    public function setPath($path)
+    public function setPath(string $path): self
     {
         $this->path = $path;
-
         return $this;
     }
 
-    /**
-     * Get the value of available
-     */ 
-    public function getAvailable()
+    public function getAvailable(): int
     {
         return $this->available;
     }
 
-    /**
-     * Set the value of available
-     *
-     * @return  self
-     */ 
-    public function setAvailable($available)
+    public function setAvailable(int $available): self
     {
         $this->available = $available;
-
         return $this;
     }
 
