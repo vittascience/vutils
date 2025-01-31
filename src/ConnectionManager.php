@@ -43,29 +43,21 @@ class ConnectionManager
             : 120;
     }
 
-    private function checkToken($id, $token)
+    private function checkToken($userId, $token)
     {
-        $token = DatabaseManager::getSharedInstance()
-            ->get(
-                "SELECT * FROM connection_tokens WHERE user_ref = ? AND token = ?",
-                [$id, $token]
-            );
-        if (empty($token))
-            return false;
-        if ($token["is_expired"] == 1)
-            return false;
-        $now = time();
-        $lastTimeActive = strtotime($token["last_time_active"]);
-        if (($now - $lastTimeActive) > self::CONNECTION_TIMEOUT) {
-            $this->deleteToken($token["user_ref"], $token["token"]);
-            return false;
+        $connectionToken = DataBaseManager::getSharedInstance()
+            ->get("SELECT * FROM connection_tokens WHERE user_ref = ? AND token = ? AND is_expired = 0", [$userId, $token]);
+
+        if ($connectionToken) {
+            return true;
         }
-        $res = DatabaseManager::getSharedInstance()
-            ->exec(
-                "UPDATE connection_tokens SET last_time_active = CURRENT_TIMESTAMP WHERE user_ref = ? AND token = ?",
-                [$token["user_ref"], $token["token"]]
-            );
-        return $res;
+        return false;
+    }
+
+    public function getToken($userId)
+    {
+        return DataBaseManager::getSharedInstance()
+            ->get("SELECT * FROM connection_tokens WHERE user_ref = ?", [$userId]);
     }
 
     public function checkLogin($identifier, $password, $totp_code = false)
@@ -73,7 +65,7 @@ class ConnectionManager
         // initialise error array with default value
         $this->errorResponse = ["success" => false];
 
-        $regular = DatabaseManager::getSharedInstance()
+        $regular = DataBaseManager::getSharedInstance()
             ->get("SELECT * FROM user_regulars WHERE email = ?", [$identifier]);
 
         if ($regular) {
@@ -102,7 +94,7 @@ class ConnectionManager
 
 
             // get the user from users table
-            $user = DatabaseManager::getSharedInstance()
+            $user = DataBaseManager::getSharedInstance()
                 ->get("SELECT * FROM users WHERE id = ?  ", [$regular["id"]]);
 
             // no user found, return an error
@@ -157,13 +149,13 @@ class ConnectionManager
     private function createToken($id)
     {
         try {
-            $successDeletion = DatabaseManager::getSharedInstance()->exec("DELETE FROM connection_tokens WHERE user_ref = ?", [$id]);
+            $successDeletion = DataBaseManager::getSharedInstance()->exec("DELETE FROM connection_tokens WHERE user_ref = ?", [$id]);
             if (!$successDeletion) {
                 return false;
             }
 
             $token = bin2hex(random_bytes(32));
-            $res = DatabaseManager::getSharedInstance()->exec("INSERT INTO connection_tokens (token,user_ref) VALUES (?, ?)", [$token, $id]);
+            $res = DataBaseManager::getSharedInstance()->exec("INSERT INTO connection_tokens (token,user_ref) VALUES (?, ?)", [$token, $id]);
             if ($res) {
                 return $token;
             }
@@ -177,7 +169,7 @@ class ConnectionManager
     public function deleteToken($id, $token)
     {
         unset($_SESSION["id"]);
-        return DatabaseManager::getSharedInstance()
+        return DataBaseManager::getSharedInstance()
             ->exec(
                 "UPDATE connection_tokens SET is_expired = 1 WHERE user_ref = ? AND token = ?",
                 [$id, $token]
