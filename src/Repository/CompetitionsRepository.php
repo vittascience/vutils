@@ -11,11 +11,11 @@ class CompetitionsRepository extends EntityRepository
         $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
 
         return $this->getEntityManager()->createQueryBuilder()
-            ->select('c.name, c.monday, c.id')
+            ->select('c.name, c.start_competition, c.end_competition,  c.id')
             ->from(Competitions::class, 'c')
-            ->where('c.monday < :dateNow') // Utilisation d'un paramètre nommé
+            ->where('c.start_competition < :dateNow') // Utilisation d'un paramètre nommé
             ->setParameter('dateNow', $dateNow) // Liaison du paramètre nommé à $dateNow
-            ->orderBy('c.monday', 'DESC')
+            ->orderBy('c.start_competition', 'DESC')
             ->getQuery()
             ->getResult();
     }

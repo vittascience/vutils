@@ -30,36 +30,54 @@ class Competitions
     {
         return $this->id;
     }
+    /**
+    * @return Name
+    */
+   public function getName(): ?string
+   {
+       return $this->name;
+   }
 
     /**
-     * @ORM\Column(type="datetime", name="monday")
+     * @ORM\Column(type="datetime", name="start_competition")
      * @var \DateTime
      */
-    private $monday;
+    private $start_competition;
 
-     /**
-     * @return Name
-     */
-    public function getName(): ?string
-    {
-        return $this->name;
-    }
 
     /**
      * @return \DateTime
      */
-    public function getMonday(): ?\DateTime
+    public function get_start_competition(): ?\DateTime
     {
-        return $this->monday;
+        return $this->start_competition;
     }
     
     public function jsonSerialize()
     {
         return [
             'name' => $this->getName(),
-            'monday' => $this->getMonday()
+            'start_competition' => $this->get_start_competition(),
+             'end_competition' => $this->get_end_competition()
         ];
     }
+
+      /**
+     * @ORM\Column(type="datetime", name="end_competition")
+     * @var \DateTime
+     */
+    private $end_competition;
+
+
+    /**
+     * @return \DateTime
+     */
+    public function get_end_competition(): ?\DateTime
+    {
+        return $this->end_competition;
+    }
+
+
 
     public static function jsonDeserialize($jsonDecoded)
     {

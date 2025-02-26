@@ -854,8 +854,9 @@ class ControllerUserAssets
                 try {
                     $limit = 10;
                     $weekOffset = 1;
-                    $monday = array_key_exists('monday', $_POST) ? htmlspecialchars($_POST['monday']) : null;
-                    $assets = $this->getBestAssetsOfThisWeek($monday, $limit);
+                    $start = array_key_exists('start', $_POST) ? htmlspecialchars($_POST['start']) : null;
+                    $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
+                    $assets = $this->getBestAssetsOfThisWeek($start, $end, $limit);
                     $myLikedImages = [];
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
@@ -1646,13 +1647,12 @@ class ControllerUserAssets
         }
         return $likedImages;
     }
-
-    public function getBestAssetsOfThisWeek($monday, int $limit = 10, int $offset = 0){
+    public function getBestAssetsOfThisWeek($start, $end, int $limit = 10, int $offset = 0){
         // Calculer la date de début et de fin de la semaine cible
-        $startOfWeek = new \DateTime($monday);
-        // $startOfWeek->modify('monday this week 00:00:00');
-        $endOfWeek = clone $startOfWeek;
-        $endOfWeek->modify('sunday this week 23:59:59');
+        $startOfWeek = new \DateTime($start);
+        $startOfWeek->setTime(0, 0, 0);
+        $endOfWeek = new \DateTime($end);
+        $endOfWeek->setTime(23, 59, 59);
         $publicGenerativeAssets = [];
         
         $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByWeek($startOfWeek, $endOfWeek, true, $limit, $offset);
