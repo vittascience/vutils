@@ -1504,6 +1504,46 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "get_total_count_of_anormal_assets" => function () {
+                try {
+                    $count = $this->entityManager
+                        ->getRepository(GenerativeAssets::class)
+                        ->getCountOfAnormalAssets();
+                    $response = new \stdClass();
+                    $response->success = true;
+                    $response->count = $count;
+                    $response->toto = "toto";
+                    return $response;
+                } catch (\Exception $e) {
+                    $response = new \stdClass();
+                    $response->success = false;
+                    $response->message = $e->getMessage();
+                    return $response;
+                }
+            },
+            "get_list_of_anormal_assets" => function () {
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $page = isset($content['page']) ? htmlspecialchars($content['page']) : 1;
+                $limit = 20;
+                $offset = ($page - 1) * $limit;
+                try {
+                    $generativeAssets = $this->entityManager
+                        ->getRepository(GenerativeAssets::class)
+                        ->getAnormalAssets($limit, $offset);
+
+                    $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (\Exception $e) {
+                    $response = new \stdClass();
+                    $response->success = false;
+                    $response->message = $e->getMessage();
+                    return $response;
+                }
+            }
         );
 
         return call_user_func($this->actions[$action], $data);
@@ -1706,34 +1746,68 @@ class ControllerUserAssets
     {
         $assetsUrls = [];
         foreach ($generativeAssets as $asset) {
-            if ($asset->getIsPublic() == false && $includeMine == false) {
-                continue;
+            if (is_object($asset)) {
+                if ($asset->getIsPublic() === false && $includeMine === false) {
+                    continue;
+                }
+                $creator = [];
+                if ($asset->getUser() !== null) {
+                    $creator['id'] = $asset->getUser()->getId();
+                    $creator['firstname'] = $asset->getUser()->getFirstName();
+                    $creator['surname'] = $asset->getUser()->getSurname();
+                    $creator['picture'] = $asset->getUser()->getPicture();
+                } else {
+                    $creator['id'] = null;
+                    $creator['firstname'] = "Anonymous";
+                    $creator['surname'] = "Anonymous";
+                    $creator['picture'] = "";
+                }
+                $assetsUrls[] = [
+                    "id"            => $asset->getId(),
+                    "url"           => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
+                    "likes"         => $asset->getLikes(),
+                    "createdAt"     => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                    "prompt"        => $asset->getPrompt(),
+                    "negativePrompt"=> $asset->getNegativePrompt(),
+                    "width"         => (int)$asset->getWidth(),
+                    "height"        => (int)$asset->getHeight(),
+                    "cfgScale"      => $asset->getCfgScale(),
+                    "modelName"     => $asset->getModelName(),
+                    "creator"       => $creator,
+                    "creationSteps" => $asset->getCreationSteps(),
+                ];
             }
-            $creator = [];
-            if ($asset->getUser() != null) {
-                $creator['id'] = $asset->getUser()->getId();
-                $creator['firstname'] = $asset->getUser()->getFirstName();
-                $creator['surname'] = $asset->getUser()->getSurname();
-                $creator['picture'] = $asset->getUser()->getPicture();
-            } else {
-                $creator['id'] = null;
-                $creator['firstname'] = "Anonymous";
-                $creator['surname'] = "Anonymous";
+            elseif (is_array($asset)) {
+                if (isset($asset['is_public']) && $asset['is_public'] == 0 && $includeMine === false) {
+                    continue;
+                }
+                $creator = [];
+                if (!empty($asset['user_id'])) {
+                    $creator['id'] = $asset['user_id'];
+                    $creator['firstname'] = ""; // ou une valeur par défaut
+                    $creator['surname'] = "";
+                    $creator['picture'] = "";
+                } else {
+                    $creator['id'] = null;
+                    $creator['firstname'] = "Anonymous";
+                    $creator['surname'] = "Anonymous";
+                    $creator['picture'] = "";
+                }
+                $assetsUrls[] = [
+                    "id"            => $asset['id'],
+                    "url"           => $this->bucketGenerativeAssetsEndpoint . $asset['name'],
+                    "likes"         => $asset['likes'],
+                    "createdAt"     => $asset['created_at'],
+                    "prompt"        => $asset['prompt'],
+                    "negativePrompt"=> $asset['negative_prompt'],
+                    "width"         => (int)$asset['witdh'],
+                    "height"        => (int)$asset['height'],
+                    "cfgScale"      => $asset['cfg_scale'],
+                    "modelName"     => $asset['model_name'],
+                    "creator"       => $creator,
+                    "creationSteps" => $asset['creation_steps'],
+                ];
             }
-
-            $assetsUrls[] = [
-                "id" => $asset->getId(),
-                "url" => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
-                "likes" => $asset->getLikes(),
-                "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
-                "prompt" => $asset->getPrompt(),
-                "negativePrompt" => $asset->getNegativePrompt(),
-                "width" => (int)$asset->getWidth(),
-                "height" => (int)$asset->getHeight(),
-                "cfgScale" => $asset->getCfgScale(),
-                "modelName" => $asset->getModelName(),
-                "creator" => $creator,
-            ];
         }
         return $assetsUrls;
     }

@@ -217,4 +217,32 @@ class GenerativeAssetsRepository extends EntityRepository
         
         return $queryBuilder->getQuery()->getResult();
     }
+    
+    function getCountOfAnormalAssets()
+    {
+        $conn = $this->getEntityManager()->getConnection();
+        $sql = "SELECT COUNT(*) as total 
+                FROM generative_assets 
+                WHERE CAST((LENGTH(creation_steps) - LENGTH(REPLACE(creation_steps, '.png', ''))) / 4 AS UNSIGNED) <> 6;";
+        $result = $conn->executeQuery($sql);
+        return $result->fetchOne();
+    }
+
+    function getAnormalAssets($limit, $offset)
+    {
+        $conn = $this->getEntityManager()->getConnection();
+        $sql = "SELECT *
+                FROM generative_assets
+                WHERE (LENGTH(creation_steps) - LENGTH(REPLACE(creation_steps, '.png', ''))) != 24
+                ORDER BY created_at DESC
+                LIMIT :limit OFFSET :offset";
+    
+        $stmt = $conn->executeQuery(
+            $sql,
+            ['limit' => $limit, 'offset' => $offset],
+            ['limit' => \PDO::PARAM_INT, 'offset' => \PDO::PARAM_INT]
+        );
+    
+        return $stmt->fetchAllAssociative();
+    }
 }
