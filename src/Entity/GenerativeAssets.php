@@ -337,7 +337,7 @@ class GenerativeAssets implements \JsonSerializable
             'modelName' => $this->modelName,
             'adminReview' => $this->adminReview,
             'creationSteps' => $this->creationSteps,
-            'isCompetition' => $this->isCompetition
+            'isCompetition' => $this->isCompetition,
         ];
     }
 

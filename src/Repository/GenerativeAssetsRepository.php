@@ -10,7 +10,7 @@ class GenerativeAssetsRepository extends EntityRepository
 {
     public function getAssetsIfDuplicateExists(String $prompt, ?String $negativePrompt, $width, $height, $scale, $modelName)
     {
-        $isDuplicate = $this->getEntityManager()->createQueryBuilder()
+        $response = $this->getEntityManager()->createQueryBuilder()
                 ->select('g')
                 ->from(GenerativeAssets::class, 'g')
                 ->where('g.prompt = :prompt')
@@ -19,18 +19,18 @@ class GenerativeAssetsRepository extends EntityRepository
                 ->andWhere('g.height = :height')
                 ->andWhere('g.cfgScale = :scale')
                 ->andWhere('g.modelName = :modelName')
-                ->andWhere('g.creationSteps IS NOT NULL') // Ajout de la condition IS NOT NULL
+                ->andWhere('g.creationSteps IS NOT NULL')
                 ->setParameter('prompt', $prompt)
                 ->setParameter('negativePrompt', $negativePrompt)
                 ->setParameter('width', $width)
                 ->setParameter('height', $height)
                 ->setParameter('scale', $scale)
                 ->setParameter('modelName', $modelName)
-                ->setMaxResults(1)
+                ->setMaxResults(10)
                 ->getQuery()
-                ->getOneOrNullResult();
-        
-        return $isDuplicate;
+                ->getResult();
+
+        return $response;
     }
 
 
@@ -54,7 +54,7 @@ class GenerativeAssetsRepository extends EntityRepository
                 ->setParameter('modelName', $modelName)
                 ->getQuery()
                 ->getResult();
-        
+
         return $isDuplicate;
     }
     
