@@ -664,7 +664,7 @@ class ControllerUserAssets
                     $cfgScale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
                     $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
                     $creationSteps = array_key_exists('creationSteps', $_POST) ? htmlspecialchars($_POST['creationSteps']) : null;
-                    $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;                   
+                    $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;
                     $isCompetition = $isCompetition == 'false' ? 0 : 1;
 
                     $lng = $_COOKIE['lang'] ?? 'en';
@@ -717,10 +717,10 @@ class ControllerUserAssets
                         $generativeAsset->setAdminReview(false);
                         $generativeAsset->setCreationSteps($creationSteps);
                         $generativeAsset->setIsCompetition($isCompetition);
-    
+
                         $this->entityManager->persist($generativeAsset);
                         $this->entityManager->flush();
-    
+
                         return [
                             "success" => true,
                             "message" => "generative_asset_created",
@@ -824,10 +824,10 @@ class ControllerUserAssets
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
                         $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
-                    
+
                         // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
                         $likedImageIds = array_column($myLikedImages, 'id');
-                    
+
                         // Ajouter l'information "isLiked" directement dans les assets
                         foreach ($assets as &$asset) {
                             $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
@@ -853,7 +853,6 @@ class ControllerUserAssets
             "get_best_assets_of_this_week" => function () {
                 try {
                     $limit = 10;
-                    $weekOffset = 1;
                     $start = array_key_exists('start', $_POST) ? htmlspecialchars($_POST['start']) : null;
                     $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
                     $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
@@ -932,7 +931,7 @@ class ControllerUserAssets
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                     $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
-    
+
                     $likes = $generativeAsset->getLikes();
                     if ($likes == 0) {
                         return [
@@ -940,7 +939,7 @@ class ControllerUserAssets
                             "message" => "You can't have negative likes.",
                         ];
                     }
-    
+
                     if (!empty($_SESSION['id'])) {
                         // remove the UserLikeImage if exist
                         $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
@@ -950,7 +949,7 @@ class ControllerUserAssets
                             $this->entityManager->flush();
                         }
                     }
-    
+
                     $generativeAsset->setLikes($likes - 1);
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
@@ -1331,7 +1330,6 @@ class ControllerUserAssets
                             "isDuplicate" => false,
                         ];
                     }
-
                 } catch (Exception $e) {
                     return [
                         "success" => false,
@@ -1396,7 +1394,7 @@ class ControllerUserAssets
                     "success" => true,
                     "message" => "duplicated",
                     "id" => $newAssets->getId(),
-                    
+
                 ];
             },
             "get_concours_generative_assets_per_page" => function () {
@@ -1476,7 +1474,7 @@ class ControllerUserAssets
                     $generativeAsset->setIsPublic(false);
                     $generativeAsset->setLikes(0);
                     $generativeAsset->setUser(null);
-                    
+
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
                     return [
@@ -1493,7 +1491,7 @@ class ControllerUserAssets
             "get_all_competition" => function () {
                 try {
                     $competition = $this->entityManager->getRepository(Competitions::class)->getAllCompetitions();
-              
+
                     return [
                         "success" => true,
                         "assets" => $competition,
@@ -1545,6 +1543,67 @@ class ControllerUserAssets
                     return $response;
                 }
             },
+            "ai-upload-json" => function () {
+                if ($_SERVER['REQUEST_METHOD'] !== "POST") {
+                    return ["success" => false, "error" => "Method not allowed"];
+                }
+
+                $payload  = json_decode(file_get_contents('php://input'), true);
+                $key      = $payload['key'] ?? md5(uniqid('', true));
+                $filename = $payload['filename'] ?? null;
+
+                if (!$filename) {
+                    return ["success" => false, "error" => "No filename provided"];
+                }
+
+                try {
+                    $safeName = preg_replace('/[^a-z0-9\-_]/i', '', $filename);
+                    $name     = "jsonfiles/{$key}-{$safeName}.json";
+                    $uploadUrl = $this->getUrlUpload($name, $this->bucket, 'application/json');
+                    $this->linkAssetToUser($this->user['id'], $name, true);
+
+                    return [
+                        "success" => true,
+                        "key"     => $key,
+                        "url"     => $uploadUrl,
+                    ];
+                } catch (Exception $e) {
+                    return ["success" => false, "error" => $e->getMessage()];
+                }
+            },
+            "ai-get-json" => function () {
+                if ($_SERVER['REQUEST_METHOD'] !== "POST") {
+                    return ["success" => false, "error" => "Method not allowed"];
+                }
+
+                $key = $_POST['key'] ?? null;
+                if (!$key) {
+                    return ["success" => false, "message" => "No key provided"];
+                }
+
+                $results = [];
+                $prefix  = "jsonfiles/{$key}";
+                $objects = $this->listObjectsFromBucket($this->bucket, $prefix);
+
+                if (!empty($objects['Contents'])) {
+                    foreach ($objects['Contents'] as $obj) {
+                        if (str_ends_with($obj['Key'], '.json')) {
+                            $cmd     = $this->clientS3->getCommand('GetObject', [
+                                'Bucket' => $this->bucket,
+                                'Key'    => $obj['Key'],
+                            ]);
+                            $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+
+                            $results[] = [
+                                "key" => $obj['Key'],
+                                "url" => (string) $request->getUri(),
+                            ];
+                        }
+                    }
+                }
+
+                return ["success" => true, "jsons" => $results];
+            },
         );
 
         return call_user_func($this->actions[$action], $data);
@@ -1554,7 +1613,7 @@ class ControllerUserAssets
     function getGenerativeAssetsByFilters($filter = null, $page = 1, $limit = 20, $repository)
     {
         $offset = ($page - 1) * $limit;
-        
+
         $publicGenerativeAssets = null;
         switch ($filter) {
             case 'most-recent':
@@ -1573,7 +1632,7 @@ class ControllerUserAssets
                 $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
                 break;
         }
-        
+
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
         return $assetsUrls;
     }
@@ -1600,7 +1659,7 @@ class ControllerUserAssets
                 $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user], ['createdAt' => 'DESC'], $limit, $offset);
                 break;
         }
-        
+
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
         return $assetsUrls;
     }
@@ -1634,7 +1693,7 @@ class ControllerUserAssets
                 $count = $repository->getCountAll(false, false, $mine, $user, $isPublic);
                 break;
         }
-        
+
         return $count;
     }
 
@@ -1681,29 +1740,30 @@ class ControllerUserAssets
         return $assetsUrls;
     }
 
-    function processReturnFromFavorite($array = null) {
+    function processReturnFromFavorite($array = null)
+    {
         $likedImages = [];
         foreach ($array as $asset) {
             $likedImages[] = $asset->getImg();
         }
         return $likedImages;
     }
-    public function getBestAssetsOfThisWeek($start, $end, int $limit = 10, int $offset = 0){
+    public function getBestAssetsOfThisWeek($start, $end, int $limit = 10, int $offset = 0)
+    {
         // Calculer la date de début et de fin de la semaine cible
         $startOfWeek = new \DateTime($start);
         $startOfWeek->setTime(0, 0, 0);
         $endOfWeek = new \DateTime($end);
         $endOfWeek->setTime(23, 59, 59);
         $publicGenerativeAssets = [];
-        
+
         $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByWeek($startOfWeek, $endOfWeek, true, $limit, $offset);
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
         return $assetsUrls;
-        
     }
 
 
-/*     
+    /*     
     function getCountOfMyFavoriteGenerativeAssetsByFilters($filter = null, $user)
     {
         $repository = $this->entityManager->getRepository(UserLikeImage::class)->getCountOfMyFavoriteSince($user, null);
@@ -1946,14 +2006,15 @@ class ControllerUserAssets
     }
 
 
-    private function generateUUIDv4() {
+    private function generateUUIDv4()
+    {
         // Générer 16 octets aléatoires
         $data = random_bytes(16);
-    
+
         // Modifier les bits pour correspondre à l'UUID version 4
         $data[6] = chr((ord($data[6]) & 0x0f) | 0x40); // Version 4
         $data[8] = chr((ord($data[8]) & 0x3f) | 0x80); // Variante RFC 4122
-    
+
         // Convertir en format UUID
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
