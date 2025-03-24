@@ -856,15 +856,15 @@ class ControllerUserAssets
                     $weekOffset = 1;
                     $start = array_key_exists('start', $_POST) ? htmlspecialchars($_POST['start']) : null;
                     $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
-                    $assets = $this->getBestAssetsOfThisWeek($start, $end, $limit);
+                    $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
+                    $assets = $this->getBestAssetsOfThisWeek($start, $end, $limit, $from);
+                    $allAssets = $this->entityManager->getRepository(Competitions::class)->getTotalOfTheWeekCompetition($start, $end);
                     $myLikedImages = [];
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
                         $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
-
                         // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
                         $likedImageIds = array_column($myLikedImages, 'id');
-
                         // Ajouter l'information "isLiked" directement dans les assets
                         foreach ($assets as &$asset) {
                             $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
@@ -879,6 +879,7 @@ class ControllerUserAssets
                         "success" => true,
                         "assets" => $assets,
                         "length" => count($assets),
+                        "allweekAssetsLengt" => $allAssets
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1502,6 +1503,46 @@ class ControllerUserAssets
                         "success" => false,
                         "message" => $e->getMessage(),
                     ];
+                }
+            },
+            "get_total_count_of_anormal_assets" => function () {
+                try {
+                    $count = $this->entityManager
+                        ->getRepository(GenerativeAssets::class)
+                        ->getCountOfAnormalAssets();
+                    $response = new \stdClass();
+                    $response->success = true;
+                    $response->count = $count;
+                    $response->toto = "toto";
+                    return $response;
+                } catch (\Exception $e) {
+                    $response = new \stdClass();
+                    $response->success = false;
+                    $response->message = $e->getMessage();
+                    return $response;
+                }
+            },
+            "get_list_of_anormal_assets" => function () {
+                $content = file_get_contents("php://input");
+                $content = json_decode($content, true);
+                $page = isset($content['page']) ? htmlspecialchars($content['page']) : 1;
+                $limit = 20;
+                $offset = ($page - 1) * $limit;
+                try {
+                    $generativeAssets = $this->entityManager
+                        ->getRepository(GenerativeAssets::class)
+                        ->getAnormalAssets($limit, $offset);
+
+                    $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                    return [
+                        "success" => true,
+                        "assets" => $assetsUrls,
+                    ];
+                } catch (\Exception $e) {
+                    $response = new \stdClass();
+                    $response->success = false;
+                    $response->message = $e->getMessage();
+                    return $response;
                 }
             },
         );
