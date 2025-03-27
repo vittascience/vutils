@@ -654,16 +654,19 @@ class ControllerUserAssets
             },
             "generative_assets" => function () {
                 try {
-                    $name = array_key_exists('name', $_POST) ? htmlspecialchars($_POST['name']) : null;
-                    $user = array_key_exists('user', $_POST) ? (int)htmlspecialchars($_POST['user']) : null;
-                    $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
-                    $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
-                    $ipAddress = array_key_exists('ipAddress', $_POST) ? htmlspecialchars($_POST['ipAddress']) : null;
+                    $name = array_key_exists('name', $_POST) ? $_POST['name'] : null;
+                    $user = array_key_exists('user', $_POST) ? (int)$_POST['user'] : null;
+                    $prompt = array_key_exists('prompt', $_POST) ? $_POST['prompt'] : null;
+                    $negativePrompt = array_key_exists('negativePrompt', $_POST) ? $_POST['negativePrompt'] : null;
+                    $ipAddress = array_key_exists('ipAddress', $_POST) ? $_POST['ipAddress'] : null;
+                    if ($ipAddress && !filter_var($ipAddress, FILTER_VALIDATE_IP)) {
+                        $ipAddress = null;
+                    }
                     $width = array_key_exists('width', $_POST) ? htmlspecialchars($_POST['width']) : null;
                     $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
                     $cfgScale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
                     $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
-                    $creationSteps = array_key_exists('creationSteps', $_POST) ? htmlspecialchars($_POST['creationSteps']) : null;
+                    $creationSteps = array_key_exists('creationSteps', $_POST) ? $_POST['creationSteps'] : null;
                     $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;                   
                     $isCompetition = $isCompetition == 'false' ? 0 : 1;
 
@@ -675,6 +678,8 @@ class ControllerUserAssets
                         ];
                     }
 
+
+                    $isDuplicable = $this->isCreationStepsDuplicable($creationSteps);
                     $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
 
                     $userCheck = null;
@@ -686,7 +691,13 @@ class ControllerUserAssets
                     }
 
                     $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
+
+
                     if ($isDuplicate) {
+                        $isDuplicate = array_filter($isDuplicate, function($asset) {
+                            return substr_count($asset->getCreationSteps(), '.png') !== 6;
+                        });
+
                         foreach ($isDuplicate as $duplicate) {
                             $duplicate->setCreationSteps($creationSteps);
                             $this->entityManager->persist($duplicate);
@@ -717,7 +728,7 @@ class ControllerUserAssets
                         $generativeAsset->setAdminReview(false);
                         $generativeAsset->setCreationSteps($creationSteps);
                         $generativeAsset->setIsCompetition($isCompetition);
-    
+                        $generativeAsset->setIsDuplicable($isDuplicable);
                         $this->entityManager->persist($generativeAsset);
                         $this->entityManager->flush();
     
@@ -1300,10 +1311,17 @@ class ControllerUserAssets
                     ];
                 }
                 try {
-                    $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
-                    $generatedUUID = $this->generateUUIDv4();
-
+                    $assets = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
+                    $isDuplicate = null;
+                    foreach ($assets as $asset) {
+                        if (substr_count($asset->getCreationSteps(), '.png') === 6) {
+                            $isDuplicate = $asset;
+                            break;
+                        }
+                    }
+                    
                     if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
+                        $generatedUUID = $this->generateUUIDv4();
                         $_SESSION["assets_to_duplicate"] = [
                             "uuid" => $generatedUUID,
                             "id" => $isDuplicate->getId(),
@@ -1747,34 +1765,68 @@ class ControllerUserAssets
     {
         $assetsUrls = [];
         foreach ($generativeAssets as $asset) {
-            if ($asset->getIsPublic() == false && $includeMine == false) {
-                continue;
+            if (is_object($asset)) {
+                if ($asset->getIsPublic() === false && $includeMine === false) {
+                    continue;
+                }
+                $creator = [];
+                if ($asset->getUser() !== null) {
+                    $creator['id'] = $asset->getUser()->getId();
+                    $creator['firstname'] = $asset->getUser()->getFirstName();
+                    $creator['surname'] = $asset->getUser()->getSurname();
+                    $creator['picture'] = $asset->getUser()->getPicture();
+                } else {
+                    $creator['id'] = null;
+                    $creator['firstname'] = "Anonymous";
+                    $creator['surname'] = "Anonymous";
+                    $creator['picture'] = "";
+                }
+                $assetsUrls[] = [
+                    "id"            => $asset->getId(),
+                    "url"           => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
+                    "likes"         => $asset->getLikes(),
+                    "createdAt"     => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                    "prompt"        => $asset->getPrompt(),
+                    "negativePrompt"=> $asset->getNegativePrompt(),
+                    "width"         => (int)$asset->getWidth(),
+                    "height"        => (int)$asset->getHeight(),
+                    "cfgScale"      => $asset->getCfgScale(),
+                    "modelName"     => $asset->getModelName(),
+                    "creator"       => $creator,
+                    "creationSteps" => $asset->getCreationSteps(),
+                ];
             }
-            $creator = [];
-            if ($asset->getUser() != null) {
-                $creator['id'] = $asset->getUser()->getId();
-                $creator['firstname'] = $asset->getUser()->getFirstName();
-                $creator['surname'] = $asset->getUser()->getSurname();
-                $creator['picture'] = $asset->getUser()->getPicture();
-            } else {
-                $creator['id'] = null;
-                $creator['firstname'] = "Anonymous";
-                $creator['surname'] = "Anonymous";
+            elseif (is_array($asset)) {
+                if (isset($asset['is_public']) && $asset['is_public'] == 0 && $includeMine === false) {
+                    continue;
+                }
+                $creator = [];
+                if (!empty($asset['user_id'])) {
+                    $creator['id'] = $asset['user_id'];
+                    $creator['firstname'] = ""; // ou une valeur par défaut
+                    $creator['surname'] = "";
+                    $creator['picture'] = "";
+                } else {
+                    $creator['id'] = null;
+                    $creator['firstname'] = "Anonymous";
+                    $creator['surname'] = "Anonymous";
+                    $creator['picture'] = "";
+                }
+                $assetsUrls[] = [
+                    "id"            => $asset['id'],
+                    "url"           => $this->bucketGenerativeAssetsEndpoint . $asset['name'],
+                    "likes"         => $asset['likes'],
+                    "createdAt"     => $asset['created_at'],
+                    "prompt"        => $asset['prompt'],
+                    "negativePrompt"=> $asset['negative_prompt'],
+                    "width"         => (int)$asset['witdh'],
+                    "height"        => (int)$asset['height'],
+                    "cfgScale"      => $asset['cfg_scale'],
+                    "modelName"     => $asset['model_name'],
+                    "creator"       => $creator,
+                    "creationSteps" => $asset['creation_steps'],
+                ];
             }
-
-            $assetsUrls[] = [
-                "id" => $asset->getId(),
-                "url" => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
-                "likes" => $asset->getLikes(),
-                "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
-                "prompt" => $asset->getPrompt(),
-                "negativePrompt" => $asset->getNegativePrompt(),
-                "width" => (int)$asset->getWidth(),
-                "height" => (int)$asset->getHeight(),
-                "cfgScale" => $asset->getCfgScale(),
-                "modelName" => $asset->getModelName(),
-                "creator" => $creator,
-            ];
         }
         return $assetsUrls;
     }
@@ -1945,7 +1997,6 @@ class ControllerUserAssets
         }
     }
 
-
     private function generateUUIDv4() {
         // Générer 16 octets aléatoires
         $data = random_bytes(16);
@@ -1956,5 +2007,16 @@ class ControllerUserAssets
     
         // Convertir en format UUID
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
+    private function isCreationStepsDuplicable(String $creationSteps) {
+        $isDuplicable = false;
+        if (is_string($creationSteps)) {
+            $creationSteps = explode(',', $creationSteps);
+            if (count($creationSteps) == 6) {
+                $isDuplicable = true;
+            }
+        }
+        return $isDuplicable;
     }
 }
