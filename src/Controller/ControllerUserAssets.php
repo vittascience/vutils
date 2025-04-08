@@ -14,6 +14,7 @@ use Aws\S3\Exception\S3Exception;
 use Utils\Entity\GenerativeAssets;
 use Utils\Entity\UserLikeImage;
 use Utils\Entity\Competitions;
+use Utils\Entity\Games;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
 
@@ -654,22 +655,20 @@ class ControllerUserAssets
             },
             "generative_assets" => function () {
                 try {
-                    $name = array_key_exists('name', $_POST) ? $_POST['name'] : null;
-                    $user = array_key_exists('user', $_POST) ? (int)$_POST['user'] : null;
-                    $prompt = array_key_exists('prompt', $_POST) ? $_POST['prompt'] : null;
-                    $negativePrompt = array_key_exists('negativePrompt', $_POST) ? $_POST['negativePrompt'] : null;
-                    $ipAddress = array_key_exists('ipAddress', $_POST) ? $_POST['ipAddress'] : null;
-                    if ($ipAddress && !filter_var($ipAddress, FILTER_VALIDATE_IP)) {
-                        $ipAddress = null;
-                    }
+                    $name = array_key_exists('name', $_POST) ? htmlspecialchars($_POST['name']) : null;
+                    $user = array_key_exists('user', $_POST) ? (int)htmlspecialchars($_POST['user']) : null;
+                    $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
+                    $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
+                    $ipAddress = array_key_exists('ipAddress', $_POST) ? htmlspecialchars($_POST['ipAddress']) : null;
                     $width = array_key_exists('width', $_POST) ? htmlspecialchars($_POST['width']) : null;
                     $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
                     $cfgScale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
                     $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
-                    $creationSteps = array_key_exists('creationSteps', $_POST) ? $_POST['creationSteps'] : null;
+                    $creationSteps = array_key_exists('creationSteps', $_POST) ? htmlspecialchars($_POST['creationSteps']) : null;
                     $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;                   
                     $isCompetition = $isCompetition == 'false' ? 0 : 1;
-
+                    $score = array_key_exists('score', $_POST) ? $_POST['score'] : null;   
+               
                     $lng = $_COOKIE['lang'] ?? 'en';
                     if (!$name) {
                         return [
@@ -678,8 +677,6 @@ class ControllerUserAssets
                         ];
                     }
 
-
-                    $isDuplicable = $this->isCreationStepsDuplicable($creationSteps);
                     $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
 
                     $userCheck = null;
@@ -691,13 +688,7 @@ class ControllerUserAssets
                     }
 
                     $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
-
-
                     if ($isDuplicate) {
-                        $isDuplicate = array_filter($isDuplicate, function($asset) {
-                            return substr_count($asset->getCreationSteps(), '.png') !== 6;
-                        });
-
                         foreach ($isDuplicate as $duplicate) {
                             $duplicate->setCreationSteps($creationSteps);
                             $this->entityManager->persist($duplicate);
@@ -728,7 +719,8 @@ class ControllerUserAssets
                         $generativeAsset->setAdminReview(false);
                         $generativeAsset->setCreationSteps($creationSteps);
                         $generativeAsset->setIsCompetition($isCompetition);
-                        $generativeAsset->setIsDuplicable($isDuplicable);
+                        $generativeAsset->setScore($score);
+    
                         $this->entityManager->persist($generativeAsset);
                         $this->entityManager->flush();
     
@@ -868,14 +860,17 @@ class ControllerUserAssets
                     $start = array_key_exists('start', $_POST) ? htmlspecialchars($_POST['start']) : null;
                     $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
                     $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
+
                     $assets = $this->getBestAssetsOfThisWeek($start, $end, $limit, $from);
-                    $allAssets = $this->entityManager->getRepository(Competitions::class)->getTotalOfTheWeekCompetition($start, $end);
-                    $myLikedImages = [];
+                    $allAssets = $this->entityManager->getRepository(Competitions::class)->getTotalOfTheWeekCompetition($start, $end);                   
+                     $myLikedImages = [];
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
                         $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+
                         // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
                         $likedImageIds = array_column($myLikedImages, 'id');
+
                         // Ajouter l'information "isLiked" directement dans les assets
                         foreach ($assets as &$asset) {
                             $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
@@ -890,7 +885,48 @@ class ControllerUserAssets
                         "success" => true,
                         "assets" => $assets,
                         "length" => count($assets),
-                        "allweekAssetsLengt" => $allAssets
+                        "allweekAssetsLength" => $allAssets
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+
+            "get_assets_of_game" => function () {
+                try {
+                    $limit = 10;
+                    $weekOffset = 1;
+                    $start = array_key_exists('start', $_POST) ? htmlspecialchars($_POST['start']) : null;
+                    $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
+                    $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
+                    $assets = $this->getAssetsOfGame($start, $end, $limit, $from);
+                    $allAssets = $this->entityManager->getRepository(Games::class)->getTotalOfTheGame($start, $end);                    
+                    $myLikedImages = [];
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
+                        $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+
+                        // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
+                        $likedImageIds = array_column($myLikedImages, 'id');
+
+                        // Ajouter l'information "isLiked" directement dans les assets
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
+                        }
+                    } else {
+                        // Si l'utilisateur n'est pas connecté, aucune image n'est likée
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = false;
+                        }
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => $assets,
+                        "length" => count($assets),
+                        "allweekAssetsLength" => $allAssets
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1303,6 +1339,7 @@ class ControllerUserAssets
                 $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
                 $scale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
                 $modelName = array_key_exists('modeleName', $_POST) ? htmlspecialchars($_POST['modeleName']) : null;
+                $score = array_key_exists('score', $_POST) ? htmlspecialchars($_POST['score']) : null;
 
                 if (!$prompt || !$width || !$height || !$scale || !$modelName) {
                     return [
@@ -1311,17 +1348,10 @@ class ControllerUserAssets
                     ];
                 }
                 try {
-                    $assets = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
-                    $isDuplicate = null;
-                    foreach ($assets as $asset) {
-                        if (substr_count($asset->getCreationSteps(), '.png') === 6) {
-                            $isDuplicate = $asset;
-                            break;
-                        }
-                    }
-                    
+                    $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
+                    $generatedUUID = $this->generateUUIDv4();
+
                     if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
-                        $generatedUUID = $this->generateUUIDv4();
                         $_SESSION["assets_to_duplicate"] = [
                             "uuid" => $generatedUUID,
                             "id" => $isDuplicate->getId(),
@@ -1359,6 +1389,7 @@ class ControllerUserAssets
             },
             "validate_duplicate_asset" => function () {
                 $uuid = array_key_exists('uuid', $_POST) ? htmlspecialchars($_POST['uuid']) : null;
+                $score = array_key_exists('score', $_POST) ? htmlspecialchars($_POST['score']) : null;
                 if (!$uuid) {
                     return [
                         "success" => false,
@@ -1405,6 +1436,7 @@ class ControllerUserAssets
                 $newAssets->setAdminReview(false);
                 $newAssets->setLang($_COOKIE['lang'] ?? 'en');
                 $newAssets->setCreationSteps($isDuplicate->getCreationSteps());
+                $newAssets->setScore($score);
                 $this->entityManager->persist($newAssets);
                 $this->entityManager->flush();
 
@@ -1523,44 +1555,34 @@ class ControllerUserAssets
                     ];
                 }
             },
-            "get_total_count_of_anormal_assets" => function () {
+            "get_all_games" => function () {
                 try {
-                    $count = $this->entityManager
-                        ->getRepository(GenerativeAssets::class)
-                        ->getCountOfAnormalAssets();
-                    $response = new \stdClass();
-                    $response->success = true;
-                    $response->count = $count;
-                    $response->toto = "toto";
-                    return $response;
-                } catch (\Exception $e) {
-                    $response = new \stdClass();
-                    $response->success = false;
-                    $response->message = $e->getMessage();
-                    return $response;
-                }
-            },
-            "get_list_of_anormal_assets" => function () {
-                $content = file_get_contents("php://input");
-                $content = json_decode($content, true);
-                $page = isset($content['page']) ? htmlspecialchars($content['page']) : 1;
-                $limit = 20;
-                $offset = ($page - 1) * $limit;
-                try {
-                    $generativeAssets = $this->entityManager
-                        ->getRepository(GenerativeAssets::class)
-                        ->getAnormalAssets($limit, $offset);
-
-                    $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
+                    $games = $this->entityManager->getRepository(Games::class)->getAllGames();
+              
                     return [
                         "success" => true,
-                        "assets" => $assetsUrls,
+                        "assets" => $games,
                     ];
-                } catch (\Exception $e) {
-                    $response = new \stdClass();
-                    $response->success = false;
-                    $response->message = $e->getMessage();
-                    return $response;
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_current_game" => function () {
+                try {
+                    $games = $this->entityManager->getRepository(Games::class)->getCurrentGame();
+              
+                    return [
+                        "success" => true,
+                        "assets" => $games,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
                 }
             },
         );
@@ -1706,6 +1728,7 @@ class ControllerUserAssets
         }
         return $likedImages;
     }
+
     public function getBestAssetsOfThisWeek($start, $end, int $limit = 10, int $offset = 0){
         // Calculer la date de début et de fin de la semaine cible
         $startOfWeek = new \DateTime($start);
@@ -1716,6 +1739,22 @@ class ControllerUserAssets
         
         $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByWeek($startOfWeek, $endOfWeek, true, $limit, $offset);
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+        return $assetsUrls;
+        
+    }
+
+    public function getAssetsOfGame($start, $end, int $limit = 10, int $offset = 0){
+        // Calculer la date de début et de fin de la semaine cible
+        $startOfWeek = new \DateTime($start);
+        $startOfWeek->setTime(0, 0, 0);
+        $endOfWeek = new \DateTime($end);
+        $endOfWeek->setTime(23, 59, 59);
+        $publicGenerativeAssets = [];
+        
+        $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByGame($startOfWeek, $endOfWeek, true, $limit, $offset);
+        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+
+
         return $assetsUrls;
         
     }
@@ -1765,68 +1804,35 @@ class ControllerUserAssets
     {
         $assetsUrls = [];
         foreach ($generativeAssets as $asset) {
-            if (is_object($asset)) {
-                if ($asset->getIsPublic() === false && $includeMine === false) {
-                    continue;
-                }
-                $creator = [];
-                if ($asset->getUser() !== null) {
-                    $creator['id'] = $asset->getUser()->getId();
-                    $creator['firstname'] = $asset->getUser()->getFirstName();
-                    $creator['surname'] = $asset->getUser()->getSurname();
-                    $creator['picture'] = $asset->getUser()->getPicture();
-                } else {
-                    $creator['id'] = null;
-                    $creator['firstname'] = "Anonymous";
-                    $creator['surname'] = "Anonymous";
-                    $creator['picture'] = "";
-                }
-                $assetsUrls[] = [
-                    "id"            => $asset->getId(),
-                    "url"           => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
-                    "likes"         => $asset->getLikes(),
-                    "createdAt"     => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
-                    "prompt"        => $asset->getPrompt(),
-                    "negativePrompt"=> $asset->getNegativePrompt(),
-                    "width"         => (int)$asset->getWidth(),
-                    "height"        => (int)$asset->getHeight(),
-                    "cfgScale"      => $asset->getCfgScale(),
-                    "modelName"     => $asset->getModelName(),
-                    "creator"       => $creator,
-                    "creationSteps" => $asset->getCreationSteps(),
-                ];
+            if ($asset->getIsPublic() == false && $includeMine == false) {
+                continue;
             }
-            elseif (is_array($asset)) {
-                if (isset($asset['is_public']) && $asset['is_public'] == 0 && $includeMine === false) {
-                    continue;
-                }
-                $creator = [];
-                if (!empty($asset['user_id'])) {
-                    $creator['id'] = $asset['user_id'];
-                    $creator['firstname'] = ""; // ou une valeur par défaut
-                    $creator['surname'] = "";
-                    $creator['picture'] = "";
-                } else {
-                    $creator['id'] = null;
-                    $creator['firstname'] = "Anonymous";
-                    $creator['surname'] = "Anonymous";
-                    $creator['picture'] = "";
-                }
-                $assetsUrls[] = [
-                    "id"            => $asset['id'],
-                    "url"           => $this->bucketGenerativeAssetsEndpoint . $asset['name'],
-                    "likes"         => $asset['likes'],
-                    "createdAt"     => $asset['created_at'],
-                    "prompt"        => $asset['prompt'],
-                    "negativePrompt"=> $asset['negative_prompt'],
-                    "width"         => (int)$asset['witdh'],
-                    "height"        => (int)$asset['height'],
-                    "cfgScale"      => $asset['cfg_scale'],
-                    "modelName"     => $asset['model_name'],
-                    "creator"       => $creator,
-                    "creationSteps" => $asset['creation_steps'],
-                ];
+            $creator = [];
+            if ($asset->getUser() != null) {
+                $creator['id'] = $asset->getUser()->getId();
+                $creator['firstname'] = $asset->getUser()->getFirstName();
+                $creator['surname'] = $asset->getUser()->getSurname();
+                $creator['picture'] = $asset->getUser()->getPicture();
+            } else {
+                $creator['id'] = null;
+                $creator['firstname'] = "Anonymous";
+                $creator['surname'] = "Anonymous";
             }
+
+            $assetsUrls[] = [
+                "id" => $asset->getId(),
+                "url" => $this->bucketGenerativeAssetsEndpoint . $asset->getName(),
+                "likes" => $asset->getLikes(),
+                "createdAt" => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
+                "prompt" => $asset->getPrompt(),
+                "negativePrompt" => $asset->getNegativePrompt(),
+                "width" => (int)$asset->getWidth(),
+                "height" => (int)$asset->getHeight(),
+                "cfgScale" => $asset->getCfgScale(),
+                "modelName" => $asset->getModelName(),
+                "creator" => $creator,
+                "score" =>$asset->getScore()
+            ];
         }
         return $assetsUrls;
     }
@@ -1997,6 +2003,7 @@ class ControllerUserAssets
         }
     }
 
+
     private function generateUUIDv4() {
         // Générer 16 octets aléatoires
         $data = random_bytes(16);
@@ -2007,16 +2014,5 @@ class ControllerUserAssets
     
         // Convertir en format UUID
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-    }
-
-    private function isCreationStepsDuplicable(String $creationSteps) {
-        $isDuplicable = false;
-        if (is_string($creationSteps)) {
-            $creationSteps = explode(',', $creationSteps);
-            if (count($creationSteps) == 6) {
-                $isDuplicable = true;
-            }
-        }
-        return $isDuplicable;
     }
 }

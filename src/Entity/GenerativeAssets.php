@@ -66,7 +66,7 @@ class GenerativeAssets implements \JsonSerializable
 
     /**
      * @ORM\Column(name="witdh", type="integer", length=4, nullable=true)
-     * @var string
+     * @var integer
      */
     private $width;
 
@@ -118,6 +118,11 @@ class GenerativeAssets implements \JsonSerializable
      * @var boolean
      */
     private $isCompetition;
+    /**
+     * @ORM\Column(name="score", type="integer", nullable=true)
+     * @var integer
+     */
+    private $score;
 
     /**
      * @return Integer
@@ -219,12 +224,12 @@ class GenerativeAssets implements \JsonSerializable
         return $this;
     }
 
-    public function getWidth(): ?string
+    public function getWidth(): ?int
     {
         return $this->width;
     }
 
-    public function setWidth(string $width): self
+    public function setWidth(int $width): self
     {
         $this->width = $width;
         return $this;
@@ -318,6 +323,17 @@ class GenerativeAssets implements \JsonSerializable
         return $this;
     }
     
+    public function getScore(): ?int
+    {
+        return $this->score;
+    }
+
+    public function setScore(?int $score): self
+    {
+        $this->score = $score;
+        return $this;
+    }
+    
     public function jsonSerialize()
     {
         return [
@@ -338,6 +354,7 @@ class GenerativeAssets implements \JsonSerializable
             'adminReview' => $this->adminReview,
             'creationSteps' => $this->creationSteps,
             'isCompetition' => $this->isCompetition,
+            'score'=>$this->score
         ];
     }
 
