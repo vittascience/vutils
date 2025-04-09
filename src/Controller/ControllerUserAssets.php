@@ -679,7 +679,8 @@ class ControllerUserAssets
                             "message" => "No name provided",
                         ];
                     }
-                    
+
+                    /* To add in future update */
                     //$isDuplicable = $this->isCreationStepsDuplicable($creationSteps);
                     $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
 
@@ -692,8 +693,6 @@ class ControllerUserAssets
                     }
 
                     $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
-
-
                     if ($isDuplicate) {
                         $isDuplicate = array_filter($isDuplicate, function($asset) {
                             return substr_count($asset->getCreationSteps(), '.png') !== 6;
@@ -730,6 +729,7 @@ class ControllerUserAssets
                         $generativeAsset->setAdminReview(false);
                         $generativeAsset->setCreationSteps($creationSteps);
                         $generativeAsset->setIsCompetition($isCompetition);
+                        /* To add in future update */
                         //$generativeAsset->setIsDuplicable($isDuplicable);
                         $generativeAsset->setScore($score);
                         $this->entityManager->persist($generativeAsset);
