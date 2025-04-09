@@ -33,7 +33,6 @@ class GenerativeAssetsRepository extends EntityRepository
         return $response;
     }
 
-
     public function getAllAssetsIfDuplicateExists(String $prompt, ?String $negativePrompt, $width, $height, $scale, $modelName)
     {
         $isDuplicate = $this->getEntityManager()->createQueryBuilder()
@@ -54,7 +53,7 @@ class GenerativeAssetsRepository extends EntityRepository
                 ->setParameter('modelName', $modelName)
                 ->getQuery()
                 ->getResult();
-
+        
         return $isDuplicate;
     }
     
@@ -217,7 +216,22 @@ class GenerativeAssetsRepository extends EntityRepository
         
         return $queryBuilder->getQuery()->getResult();
     }
-    
+
+    public function findAssetsByGame(\DateTime $startOfWeek, \DateTime $endOfWeek, bool $isPublic, $limit, $offset){
+        $queryBuilder = $this->getEntityManager()->createQueryBuilder();
+        $queryBuilder->select('asset')
+        ->from(GenerativeAssets::class, 'asset')
+        ->andWhere('asset.createdAt BETWEEN :start AND :end')
+        ->andWhere('asset.score IS NOT NULL')
+        ->orderBy('asset.score', 'DESC')
+        ->setParameter('start', $startOfWeek)
+        ->setParameter('end', $endOfWeek)
+        ->setMaxResults($limit)
+        ->setFirstResult($offset);
+        
+        return $queryBuilder->getQuery()->getResult();
+    }
+
     function getCountOfAnormalAssets()
     {
         $conn = $this->getEntityManager()->getConnection();

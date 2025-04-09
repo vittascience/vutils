@@ -14,6 +14,7 @@ use Aws\S3\Exception\S3Exception;
 use Utils\Entity\GenerativeAssets;
 use Utils\Entity\UserLikeImage;
 use Utils\Entity\Competitions;
+use Utils\Entity\Games;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
 
@@ -669,7 +670,8 @@ class ControllerUserAssets
                     $creationSteps = array_key_exists('creationSteps', $_POST) ? $_POST['creationSteps'] : null;
                     $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;                   
                     $isCompetition = $isCompetition == 'false' ? 0 : 1;
-
+                    $score = array_key_exists('score', $_POST) ? $_POST['score'] : null;   
+               
                     $lng = $_COOKIE['lang'] ?? 'en';
                     if (!$name) {
                         return [
@@ -678,8 +680,8 @@ class ControllerUserAssets
                         ];
                     }
 
-
-                    $isDuplicable = $this->isCreationStepsDuplicable($creationSteps);
+                    /* To add in future update */
+                    //$isDuplicable = $this->isCreationStepsDuplicable($creationSteps);
                     $dateNow = new \DateTime('now', new \DateTimeZone('Europe/Paris'));
 
                     $userCheck = null;
@@ -691,8 +693,6 @@ class ControllerUserAssets
                     }
 
                     $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
-
-
                     if ($isDuplicate) {
                         $isDuplicate = array_filter($isDuplicate, function($asset) {
                             return substr_count($asset->getCreationSteps(), '.png') !== 6;
@@ -702,6 +702,7 @@ class ControllerUserAssets
                             $duplicate->setCreationSteps($creationSteps);
                             $this->entityManager->persist($duplicate);
                         }
+
                         $this->entityManager->flush();
 
                         return [
@@ -728,7 +729,9 @@ class ControllerUserAssets
                         $generativeAsset->setAdminReview(false);
                         $generativeAsset->setCreationSteps($creationSteps);
                         $generativeAsset->setIsCompetition($isCompetition);
-                        $generativeAsset->setIsDuplicable($isDuplicable);
+                        /* To add in future update */
+                        //$generativeAsset->setIsDuplicable($isDuplicable);
+                        $generativeAsset->setScore($score);
                         $this->entityManager->persist($generativeAsset);
                         $this->entityManager->flush();
     
@@ -868,14 +871,17 @@ class ControllerUserAssets
                     $start = array_key_exists('start', $_POST) ? htmlspecialchars($_POST['start']) : null;
                     $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
                     $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
+
                     $assets = $this->getBestAssetsOfThisWeek($start, $end, $limit, $from);
-                    $allAssets = $this->entityManager->getRepository(Competitions::class)->getTotalOfTheWeekCompetition($start, $end);
-                    $myLikedImages = [];
+                    $allAssets = $this->entityManager->getRepository(Competitions::class)->getTotalOfTheWeekCompetition($start, $end);                   
+                     $myLikedImages = [];
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
                         $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+
                         // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
                         $likedImageIds = array_column($myLikedImages, 'id');
+
                         // Ajouter l'information "isLiked" directement dans les assets
                         foreach ($assets as &$asset) {
                             $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
@@ -890,7 +896,48 @@ class ControllerUserAssets
                         "success" => true,
                         "assets" => $assets,
                         "length" => count($assets),
-                        "allweekAssetsLengt" => $allAssets
+                        "allweekAssetsLength" => $allAssets
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+
+            "get_assets_of_game" => function () {
+                try {
+                    $limit = 10;
+                    $weekOffset = 1;
+                    $start = array_key_exists('start', $_POST) ? htmlspecialchars($_POST['start']) : null;
+                    $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
+                    $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
+                    $assets = $this->getAssetsOfGame($start, $end, $limit, $from);
+                    $allAssets = $this->entityManager->getRepository(Games::class)->getTotalOfTheGame($start, $end);                    
+                    $myLikedImages = [];
+                    if (!empty($_SESSION['id'])) {
+                        $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
+                        $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
+
+                        // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
+                        $likedImageIds = array_column($myLikedImages, 'id');
+
+                        // Ajouter l'information "isLiked" directement dans les assets
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
+                        }
+                    } else {
+                        // Si l'utilisateur n'est pas connecté, aucune image n'est likée
+                        foreach ($assets as &$asset) {
+                            $asset['isLiked'] = false;
+                        }
+                    }
+                    return [
+                        "success" => true,
+                        "assets" => $assets,
+                        "length" => count($assets),
+                        "allweekAssetsLength" => $allAssets
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1359,6 +1406,7 @@ class ControllerUserAssets
             },
             "validate_duplicate_asset" => function () {
                 $uuid = array_key_exists('uuid', $_POST) ? htmlspecialchars($_POST['uuid']) : null;
+                $score = array_key_exists('score', $_POST) ? htmlspecialchars($_POST['score']) : null;
                 if (!$uuid) {
                     return [
                         "success" => false,
@@ -1405,6 +1453,7 @@ class ControllerUserAssets
                 $newAssets->setAdminReview(false);
                 $newAssets->setLang($_COOKIE['lang'] ?? 'en');
                 $newAssets->setCreationSteps($isDuplicate->getCreationSteps());
+                $newAssets->setScore($score);
                 $this->entityManager->persist($newAssets);
                 $this->entityManager->flush();
 
@@ -1515,6 +1564,36 @@ class ControllerUserAssets
                     return [
                         "success" => true,
                         "assets" => $competition,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_all_games" => function () {
+                try {
+                    $games = $this->entityManager->getRepository(Games::class)->getAllGames();
+              
+                    return [
+                        "success" => true,
+                        "assets" => $games,
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
+            "get_current_game" => function () {
+                try {
+                    $games = $this->entityManager->getRepository(Games::class)->getCurrentGame();
+              
+                    return [
+                        "success" => true,
+                        "assets" => $games,
                     ];
                 } catch (Exception $e) {
                     return [
@@ -1706,6 +1785,7 @@ class ControllerUserAssets
         }
         return $likedImages;
     }
+
     public function getBestAssetsOfThisWeek($start, $end, int $limit = 10, int $offset = 0){
         // Calculer la date de début et de fin de la semaine cible
         $startOfWeek = new \DateTime($start);
@@ -1716,6 +1796,22 @@ class ControllerUserAssets
         
         $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByWeek($startOfWeek, $endOfWeek, true, $limit, $offset);
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+        return $assetsUrls;
+        
+    }
+
+    public function getAssetsOfGame($start, $end, int $limit = 10, int $offset = 0){
+        // Calculer la date de début et de fin de la semaine cible
+        $startOfWeek = new \DateTime($start);
+        $startOfWeek->setTime(0, 0, 0);
+        $endOfWeek = new \DateTime($end);
+        $endOfWeek->setTime(23, 59, 59);
+        $publicGenerativeAssets = [];
+        
+        $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByGame($startOfWeek, $endOfWeek, true, $limit, $offset);
+        $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
+
+
         return $assetsUrls;
         
     }
@@ -1996,6 +2092,7 @@ class ControllerUserAssets
             ];
         }
     }
+
 
     private function generateUUIDv4() {
         // Générer 16 octets aléatoires
