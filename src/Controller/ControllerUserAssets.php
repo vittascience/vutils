@@ -1890,6 +1890,7 @@ class ControllerUserAssets
                     "modelName"     => $asset->getModelName(),
                     "creator"       => $creator,
                     "creationSteps" => $asset->getCreationSteps(),
+                    "score"        => $asset->getScore(),
                 ];
             }
             elseif (is_array($asset)) {
@@ -1921,6 +1922,7 @@ class ControllerUserAssets
                     "modelName"     => $asset['model_name'],
                     "creator"       => $creator,
                     "creationSteps" => $asset['creation_steps'],
+                    "score"        => $asset['score'],
                 ];
             }
         }
