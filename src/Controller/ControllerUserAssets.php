@@ -1166,7 +1166,7 @@ class ControllerUserAssets
                 $boolIsPublic = $isPublic == 1 ? true : false;
 
                 try {
-                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true, 'isPublic' => $boolIsPublic], ['createdAt' => 'DESC'], $limit, $offset);
+                    $generativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => $boolIsPublic], ['createdAt' => 'DESC'], $limit, $offset);
                     $assetsUrls = $this->manageGenerativeAssets($generativeAssets, true);
                     return [
                         "success" => true,
@@ -1251,7 +1251,7 @@ class ControllerUserAssets
                 $isPublic = array_key_exists('is_public', $content) ? htmlspecialchars($content['is_public']) : false;
                 $boolIsPublic = $isPublic == 1 ? true : false;
                 try {
-                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['adminReview' => true, 'isPublic' => $boolIsPublic]);
+                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => $boolIsPublic]);
                     return [
                         "success" => true,
                         "length" => count($publicGenerativeAssets)
