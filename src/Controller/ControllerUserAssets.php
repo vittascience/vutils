@@ -1251,10 +1251,10 @@ class ControllerUserAssets
                 $isPublic = array_key_exists('is_public', $content) ? htmlspecialchars($content['is_public']) : false;
                 $boolIsPublic = $isPublic == 1 ? true : false;
                 try {
-                    $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['isPublic' => $boolIsPublic]);
+                    $countGenerativeAssetsNotPublicReviewed = $this->entityManager->getRepository(GenerativeAssets::class)->getCountOfNonReviewedAssetsNotPublic($boolIsPublic);
                     return [
                         "success" => true,
-                        "length" => count($publicGenerativeAssets)
+                        "length" => $countGenerativeAssetsNotPublicReviewed
                     ];
                 } catch (Exception $e) {
                     return [

@@ -180,6 +180,21 @@ class GenerativeAssetsRepository extends EntityRepository
         return $queryBuilder->getQuery()->getResult();   
     }
 
+    public function getCountOfNonReviewedAssetsNotPublic($isPublic) {
+        $qb = $this->getEntityManager()->createQueryBuilder();
+        $qb->select('count(g)')
+            ->from(GenerativeAssets::class, 'g');
+            if (!$isPublic) {
+                $qb->andWhere('g.adminReview = 1');
+            }
+            $qb->andWhere('g.isPublic = :isPublic')
+            ->setParameter('isPublic', $isPublic)
+            ->getQuery()
+            ->getResult();
+
+        return $qb->getQuery()->getSingleScalarResult();
+    }
+
     public function getAllMostPopularSinceFromArray($limit, $offset, array $ids, $since = null) {
         $queryBuilder = $this->getEntityManager()->createQueryBuilder();
         $queryBuilder->select('asset')
