@@ -1344,17 +1344,24 @@ class ControllerUserAssets
                 }
             },
             "check_duplicate_generative_assets" => function () {
-                $prompt = array_key_exists('prompt', $_POST) ? htmlspecialchars($_POST['prompt']) : null;
-                $negativePrompt = array_key_exists('negativePrompt', $_POST) ? htmlspecialchars($_POST['negativePrompt']) : null;
+                $prompt = array_key_exists('prompt', $_POST) ? $_POST['prompt'] : null;
+                $negativePrompt = array_key_exists('negativePrompt', $_POST) ? $_POST['negativePrompt'] : null;
                 $width = array_key_exists('width', $_POST) ? htmlspecialchars($_POST['width']) : null;
                 $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
                 $scale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
-                $modelName = array_key_exists('modeleName', $_POST) ? htmlspecialchars($_POST['modeleName']) : null;
+                $modelName = array_key_exists('model', $_POST) ? htmlspecialchars($_POST['model']) : null;
 
                 if (!$prompt || !$width || !$height || !$scale || !$modelName) {
                     return [
                         "success" => false,
                         "message" => "missing_data",
+                        "missingData" => [
+                            "prompt" => $prompt,
+                            "width" => $width,
+                            "height" => $height,
+                            "scale" => $scale,
+                            "modelName" => $modelName,
+                        ]
                     ];
                 }
                 try {
@@ -1394,6 +1401,7 @@ class ControllerUserAssets
                         return [
                             "success" => true,
                             "isDuplicate" => false,
+                            "assetsChecked" => count($assets),
                         ];
                     }
 
