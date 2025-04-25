@@ -10,25 +10,33 @@ class GenerativeAssetsRepository extends EntityRepository
 {
     public function getAssetsIfDuplicateExists(String $prompt, ?String $negativePrompt, $width, $height, $scale, $modelName)
     {
-        $response = $this->getEntityManager()->createQueryBuilder()
-                ->select('g')
-                ->from(GenerativeAssets::class, 'g')
-                ->where('g.prompt = :prompt')
-                ->andWhere('g.negativePrompt = :negativePrompt')
-                ->andWhere('g.width = :width')
-                ->andWhere('g.height = :height')
-                ->andWhere('g.cfgScale = :scale')
-                ->andWhere('g.modelName = :modelName')
-                ->andWhere('g.creationSteps IS NOT NULL')
-                ->setParameter('prompt', $prompt)
-                ->setParameter('negativePrompt', $negativePrompt)
-                ->setParameter('width', $width)
-                ->setParameter('height', $height)
-                ->setParameter('scale', $scale)
-                ->setParameter('modelName', $modelName)
-                ->setMaxResults(10)
-                ->getQuery()
-                ->getResult();
+        $qb = $this->getEntityManager()->createQueryBuilder();
+        $qb->select('g')
+            ->from(GenerativeAssets::class, 'g')
+            ->where('g.prompt = :prompt');
+
+        if (!empty($negativePrompt)) {
+            $qb->andWhere('g.negativePrompt = :negativePrompt');
+        }
+
+        $qb->andWhere('g.width = :width')
+            ->andWhere('g.height = :height')
+            ->andWhere('g.cfgScale = :scale')
+            ->andWhere('g.modelName = :modelName')
+            ->andWhere('g.creationSteps IS NOT NULL')
+            ->setParameter('prompt', $prompt)
+            ->setParameter('width', $width)
+            ->setParameter('height', $height)
+            ->setParameter('scale', $scale)
+            ->setParameter('modelName', $modelName);
+
+        if (!empty($negativePrompt)) {
+            $qb->setParameter('negativePrompt', $negativePrompt);
+        }
+
+        $qb->setMaxResults(10);
+
+        $response = $qb->getQuery()->getResult();
 
         return $response;
     }
