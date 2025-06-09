@@ -66,6 +66,7 @@ class ControllerUserAssets
 
         $this->oneMonthAgo = (new \DateTime())->modify('-1 month');
         $this->oneWeekAgo = (new \DateTime())->modify('-7 days');
+        $this->today = (new \DateTime())->modify('today');
     }
 
     public function action($action, $data = [])
@@ -1662,6 +1663,9 @@ class ControllerUserAssets
         
         $publicGenerativeAssets = null;
         switch ($filter) {
+            case 'most-popular-today':
+                $publicGenerativeAssets = $repository->getAllMostPopularByCreatedAt($this->today, $limit, $offset);
+                break;
             case 'most-recent':
                 $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
                 break;
@@ -1689,6 +1693,7 @@ class ControllerUserAssets
         $offset = ($page - 1) * $limit;
         $publicGenerativeAssets = null;
         switch ($filter) {
+
             case 'most-recent':
                 $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user], ['createdAt' => 'DESC'], $limit, $offset);
                 break;
@@ -1700,6 +1705,9 @@ class ControllerUserAssets
                 break;
             case 'most-popular-month':
                 $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getMyMostPopularByCreatedAt($this->oneMonthAgo, $limit, $offset, $user);
+                break;
+            case 'most-popular-today':
+                $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->getMyMostPopularByCreatedAt($this->today, $limit, $offset, $user);
                 break;
             default:
                 $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user], ['createdAt' => 'DESC'], $limit, $offset);
@@ -1723,6 +1731,7 @@ class ControllerUserAssets
     {
         $count = 0;
         switch ($filter) {
+   
             case 'most-recent':
                 $count = $repository->getCountAll(false, false, $mine, $user, $isPublic);
                 break;
@@ -1734,6 +1743,9 @@ class ControllerUserAssets
                 break;
             case 'most-popular-month':
                 $count = $repository->getCountAllMostPopularByCreatedAt($this->oneMonthAgo, $mine, $user, $isPublic);
+                break;
+            case 'most-popular-today':
+                $count = $repository->getCountAllMostPopularByCreatedAt($this->today,  $mine, $user, $isPublic);
                 break;
             default:
                 $count = $repository->getCountAll(false, false, $mine, $user, $isPublic);
@@ -1762,6 +1774,7 @@ class ControllerUserAssets
         }
 
         switch ($filter) {
+
             case 'most-recent':
                 //$likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, null, $limit, $offset));
                 $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, null);
@@ -1776,6 +1789,9 @@ class ControllerUserAssets
             case 'most-popular-month':
                 /* $likedImages = $this->processReturnFromFavorite($repository->getMyFavoriteSince($user, $this->oneMonthAgo, $limit, $offset)); */
                 $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, $this->oneMonthAgo);
+                break;
+            case 'most-popular-today':
+                $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, $this->today);
                 break;
             default:
                 $likedImages = $this->entityManager->getRepository(GenerativeAssets::class)->getAllMostPopularSinceFromArray($limit, $offset, $ids, null);
