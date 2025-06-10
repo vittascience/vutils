@@ -1042,6 +1042,14 @@ class ControllerUserAssets
 
                             if (!$isLiked) {
                                 $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                                if (!$generativeAsset) {
+                                    $userLikeImage = $this->entityManager->getRepository(UserLikeImage::class)->findOneBy(['user' => $user, 'img' => $id]);
+                                    if ($userLikeImage) {
+                                        $this->entityManager->remove($userLikeImage);
+                                        $this->entityManager->flush();
+                                    }
+                                    continue;
+                                }
                                 if ($generativeAsset->getLikes() == 0) {
                                     $generativeAsset->setLikes(1);
                                     $this->entityManager->persist($generativeAsset);
