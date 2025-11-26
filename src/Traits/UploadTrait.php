@@ -21,10 +21,10 @@ trait UploadTrait
         $this->entityManager = $entityManager;
         $this->user = $user;
 
-        $this->s3PublicBaseUrl = !empty($_ENV['VS_S3_USER_PUBLIC_BASE_URL']) 
-            ? rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'], '/') 
+        $this->s3PublicBaseUrl = !empty($_ENV['VS_S3_USER_PUBLIC_BASE_URL'])
+            ? rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'], '/')
             : "https://vittai-user-assets-dev.s3.fr-par.scw.cloud";
-        
+
         $this->s3Client = new S3Client([
             'credentials' => [
                 'key' => $_ENV['VS_S3_KEY'],
@@ -123,16 +123,13 @@ trait UploadTrait
         $userImg = $userImgs[0];
         $key = $userImg->getImg();
 
-        try {
-            $this->s3Client->deleteObject([
-                'Bucket' => $this->s3Bucket,
-                'Key'    => $key,
-            ]);
-        } catch (AwsException $e) {
+        $result = $this->deleteFromS3($key);
+
+        if (!$result['success']) {
             return [
                 "success" => false,
                 "id"      => $imageId,
-                "message" => "Image deletion failed: " . $e->getMessage(),
+                "message" => $result['message'],
             ];
         }
 
@@ -140,6 +137,41 @@ trait UploadTrait
         $this->entityManager->flush();
 
         return ["success" => true, "id" => $imageId, "message" => "Image deleted successfully"];
+    }
+
+    /**
+     * Delete a file from S3 bucket
+     * 
+     * @param string $key The S3 key/path of the file to delete
+     * @return array Returns success status and message
+     */
+    protected function deleteFromS3(string $key): array
+    {
+        if (empty($key)) {
+            return [
+                'success' => false,
+                'message' => 'Invalid S3 key provided'
+            ];
+        }
+
+        try {
+            $this->s3Client->deleteObject([
+                'Bucket' => $this->s3Bucket,
+                'Key'    => $key,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'File deleted successfully from S3',
+                'key'     => $key
+            ];
+        } catch (AwsException $e) {
+            return [
+                'success' => false,
+                'message' => 'S3 deletion failed: ' . $e->getMessage(),
+                'key'     => $key
+            ];
+        }
     }
 
     protected function handleUploadToS3(array $options): array
@@ -222,7 +254,6 @@ trait UploadTrait
         $key = rtrim($options['subDir'], '/') . '/' . $filenameToUpload;
 
         try {
-            // ✅ Maintenant $this->s3Client fonctionne car la méthode n'est plus static
             $this->s3Client->putObject([
                 'Bucket' => $this->s3Bucket,
                 'Key' => $key,
@@ -244,7 +275,7 @@ trait UploadTrait
         return [
             'filename' => $filenameToUpload,
             'key' => $key,
-            'src' => $this->buildPublicUrl($key), // ✅ $this fonctionne ici aussi
+            'src' => $this->buildPublicUrl($key),
             'mimeType' => $mimeType,
             'extension' => $extension,
             'size' => $fileSize,
