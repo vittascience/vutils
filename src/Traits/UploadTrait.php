@@ -21,8 +21,10 @@ trait UploadTrait
         $this->entityManager = $entityManager;
         $this->user = $user;
 
-
-        $this->s3PublicBaseUrl = rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'] ?? '', '/');
+        $this->s3PublicBaseUrl = !empty($_ENV['VS_S3_USER_PUBLIC_BASE_URL']) 
+            ? rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'], '/') 
+            : "https://vittai-user-assets-dev.s3.fr-par.scw.cloud";
+        
         $this->s3Client = new S3Client([
             'credentials' => [
                 'key' => $_ENV['VS_S3_KEY'],
@@ -34,7 +36,7 @@ trait UploadTrait
             'signature_version' => 'v4'
         ]);
 
-        $this->s3Bucket = "user-assets-dev";
+        $this->s3Bucket = "vittai-user-assets-dev";
         if (isset($_ENV['VS_S3_BUCKET_USER'])) {
             if (!empty($_ENV['VS_S3_BUCKET_USER'])) {
                 $this->s3Bucket = $_ENV['VS_S3_BUCKET_USER'];
@@ -220,6 +222,7 @@ trait UploadTrait
         $key = rtrim($options['subDir'], '/') . '/' . $filenameToUpload;
 
         try {
+            // ✅ Maintenant $this->s3Client fonctionne car la méthode n'est plus static
             $this->s3Client->putObject([
                 'Bucket' => $this->s3Bucket,
                 'Key' => $key,
@@ -241,7 +244,7 @@ trait UploadTrait
         return [
             'filename' => $filenameToUpload,
             'key' => $key,
-            'src' => $this->buildPublicUrl($key),
+            'src' => $this->buildPublicUrl($key), // ✅ $this fonctionne ici aussi
             'mimeType' => $mimeType,
             'extension' => $extension,
             'size' => $fileSize,
