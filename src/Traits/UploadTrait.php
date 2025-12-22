@@ -145,7 +145,7 @@ trait UploadTrait
      * @param string $key The S3 key/path of the file to delete
      * @return array Returns success status and message
      */
-    protected function deleteFromS3(string $key): array
+    public function deleteFromS3(string $key): array
     {
         if (empty($key)) {
             return [
@@ -172,6 +172,79 @@ trait UploadTrait
                 'key'     => $key
             ];
         }
+    }
+
+    /**
+     * Upload un fichier unique sur S3
+     * 
+     * @param string $localPath Chemin local du fichier
+     * @param string $s3Key Clé S3 (chemin dans le bucket)
+     * @param string $contentType Type MIME du fichier
+     * @return bool Retourne true si succès, false sinon
+     */
+    protected function uploadFileToS3(string $localPath, string $s3Key, string $contentType): bool
+    {
+        try {
+            $this->s3Client->putObject([
+                'Bucket' => $this->s3Bucket,
+                'Key' => $s3Key,
+                'SourceFile' => $localPath,
+                'ACL' => 'public-read',
+                'ContentType' => $contentType,
+            ]);
+            return true;
+        } catch (AwsException $e) {
+            error_log("Erreur S3 upload ({$s3Key}): " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Upload des 3 versions d'une image (principale, thumbnail, medium) sur S3
+     * 
+     * @param string $mainPath Chemin local de l'image principale
+     * @param string $thumbPath Chemin local de la miniature
+     * @param string $mediumPath Chemin local de l'image medium
+     * @param string $fileName Nom de fichier principal
+     * @param string $thumbName Nom de fichier miniature
+     * @param string $mediumName Nom de fichier medium
+     * @param string $subDir Sous-répertoire S3
+     * @return bool Retourne true si tous les uploads réussissent
+     */
+    protected function uploadImageVariantsToS3(
+        string $mainPath,
+        string $thumbPath,
+        string $mediumPath,
+        string $fileName,
+        string $thumbName,
+        string $mediumName,
+        string $subDir = 'user_data/exp_img'
+    ): bool {
+        $success = true;
+        
+        $success = $this->uploadFileToS3($mainPath, "{$subDir}/{$fileName}", 'image/jpeg') && $success;
+        $success = $this->uploadFileToS3($thumbPath, "{$subDir}/{$thumbName}", 'image/jpeg') && $success;
+        $success = $this->uploadFileToS3($mediumPath, "{$subDir}/{$mediumName}", 'image/jpeg') && $success;
+        
+        return $success;
+    }
+
+    /**
+     * Upload d'une vidéo sur S3
+     * 
+     * @param string $localPath Chemin local de la vidéo
+     * @param string $fileName Nom du fichier vidéo
+     * @param string $contentType Type MIME de la vidéo
+     * @param string $subDir Sous-répertoire S3
+     * @return bool Retourne true si l'upload réussit
+     */
+    protected function uploadVideoToS3(
+        string $localPath,
+        string $fileName,
+        string $contentType = 'video/mp4',
+        string $subDir = 'user_data/exp_video'
+    ): bool {
+        return $this->uploadFileToS3($localPath, "{$subDir}/{$fileName}", $contentType);
     }
 
     protected function handleUploadToS3(array $options): array
