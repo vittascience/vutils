@@ -182,7 +182,7 @@ trait UploadTrait
      * @param string $contentType Type MIME du fichier
      * @return bool Retourne true si succès, false sinon
      */
-    protected function uploadFileToS3(string $localPath, string $s3Key, string $contentType): bool
+    public function uploadFileToS3(string $localPath, string $s3Key, string $contentType): bool
     {
         try {
             $this->s3Client->putObject([
@@ -211,7 +211,7 @@ trait UploadTrait
      * @param string $subDir Sous-répertoire S3
      * @return bool Retourne true si tous les uploads réussissent
      */
-    protected function uploadImageVariantsToS3(
+    public function uploadImageVariantsToS3(
         string $mainPath,
         string $thumbPath,
         string $mediumPath,
@@ -238,7 +238,7 @@ trait UploadTrait
      * @param string $subDir Sous-répertoire S3
      * @return bool Retourne true si l'upload réussit
      */
-    protected function uploadVideoToS3(
+    public function uploadVideoToS3(
         string $localPath,
         string $fileName,
         string $contentType = 'video/mp4',
@@ -247,7 +247,7 @@ trait UploadTrait
         return $this->uploadFileToS3($localPath, "{$subDir}/{$fileName}", $contentType);
     }
 
-    protected function handleUploadToS3(array $options): array
+    public function handleUploadToS3(array $options): array
     {
         $defaults = [
             'fieldName' => 'file',
