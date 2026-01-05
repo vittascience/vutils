@@ -1657,7 +1657,7 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
+                    $folder = array_key_exists('folderId', $request) ? $request['folderId'] : null;
 
                     if (!$key) {
                         return [
@@ -1666,14 +1666,14 @@ class ControllerUserAssets
                         ];
                     }
 
-                    if (!$projectId) {
+                    if (!$folder) {
                         return [
                             "success" => false,
-                            "message" => "no_project_id_provided",
+                            "message" => "no_folder_id_provided",
                         ];
                     }
 
-                    $finalDestinationKey = $projectId.'/'.$key.'.opus';
+                    $finalDestinationKey = $folder.'/'.$key.'.opus';
                     $cmd = $this->clientS3->getCommand('GetObject', [
                         'Bucket' => $this->ttsBucket,
                         'Key' => $finalDestinationKey,
@@ -1683,6 +1683,8 @@ class ControllerUserAssets
                     return [
                         "success" => true,
                         "downloadUrl" => (string) $request->getUri(),
+                        "key" => $key,
+                        "folderId" => $folder,
                     ];
                 } else {
                     return [
@@ -1695,14 +1697,16 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
 
                     if (!$key) {
                         $key = md5(uniqid(rand(), true));
                     }
 
-                    if ($key && $projectId) {
-                        $finalDestinationKey = $projectId.'/'.$key.'.opus';
+                    $folder  = md5(uniqid(rand(), true));
+                    
+
+                    if ($key && $folder) {
+                        $finalDestinationKey = $folder.'/'.$key.'.opus';
                         $cmd = $this->clientS3->getCommand('PutObject', [
                             'Bucket' => $this->ttsBucket,
                             'Key' => $finalDestinationKey,
@@ -1714,6 +1718,7 @@ class ControllerUserAssets
                             "success" => true,
                             "uploadUrl" => (string) $request->getUri(),
                             "key" => $key,
+                            "folderId" => $folder,
                         ];
                     } else {
                         return [
@@ -1734,7 +1739,7 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
+                    $folder = array_key_exists('folderId', $request) ? $request['folderId'] : null;
 
                     if (!$key) {
                         return [
@@ -1743,14 +1748,14 @@ class ControllerUserAssets
                         ];
                     }
 
-                    if (!$projectId) {
+                    if (!$folder) {
                         return [
                             "success" => false,
-                            "message" => "no_project_id_provided",
+                            "message" => "no_folder_id_provided",
                         ];
                     }
 
-                    $finalDestinationKey = $projectId.'/'.$key.'.opus';
+                    $finalDestinationKey = $folder.'/'.$key.'.opus';
                     $cmd = $this->clientS3->getCommand('PutObject', [
                         'Bucket' => $this->ttsBucket,
                         'Key' => $finalDestinationKey,
@@ -1761,6 +1766,8 @@ class ControllerUserAssets
                     return [
                         "success" => true,
                         "uploadUrl" => (string) $request->getUri(),
+                        "key" => $key,
+                        "folderId" => $folder,
                     ];
 
                 } else {
