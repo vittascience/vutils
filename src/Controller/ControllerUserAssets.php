@@ -1686,7 +1686,7 @@ class ControllerUserAssets
                 } else {
                     return [
                         "success" => false,
-                        "error" => "Method not allowed",
+                        "error" => "method_not_allowed",
                     ];
                 }
             },
