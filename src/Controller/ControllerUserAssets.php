@@ -1781,7 +1781,7 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
+                    $folder = array_key_exists('folderId', $request) ? $request['folderId'] : null;
 
                     if (!$key) {
                         return [
@@ -1790,14 +1790,14 @@ class ControllerUserAssets
                         ];
                     }
 
-                    if (!$projectId) {
+                    if (!$folder) {
                         return [
                             "success" => false,
                             "message" => "no_project_id_provided",
                         ];
                     }
 
-                    $finalDestinationKey = $projectId.'/'.$key.'.opus';
+                    $finalDestinationKey = $folder.'/'.$key.'.opus';
 
                     try {
                         $this->clientS3->deleteObject([
