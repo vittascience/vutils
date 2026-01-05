@@ -1737,7 +1737,6 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $sound = array_key_exists('sound', $request) ? $request['sound'] : null;
                     $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
 
                     if (!$key) {
@@ -1754,25 +1753,19 @@ class ControllerUserAssets
                         ];
                     }
 
-                    if ($sound) {
-                        $finalDestinationKey = $projectId.'/'.$key.'.opus';
-                        $cmd = $this->clientS3->getCommand('PutObject', [
-                            'Bucket' => $this->ttsBucket,
-                            'Key' => $finalDestinationKey,
-                            'ContentType' => 'audio/opus',
-                        ]);
-                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
-                
-                        return [
-                            "success" => true,
-                            "uploadUrl" => (string) $request->getUri(),
-                        ];
-                    } else {
-                        return [
-                            "success" => false,
-                            "message" => "no_sound_provided",
-                        ];
-                    }
+                    $finalDestinationKey = $projectId.'/'.$key.'.opus';
+                    $cmd = $this->clientS3->getCommand('PutObject', [
+                        'Bucket' => $this->ttsBucket,
+                        'Key' => $finalDestinationKey,
+                        'ContentType' => 'audio/opus',
+                    ]);
+                    $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+            
+                    return [
+                        "success" => true,
+                        "uploadUrl" => (string) $request->getUri(),
+                    ];
+                    
                 } else {
                     return [
                         "success" => false,
