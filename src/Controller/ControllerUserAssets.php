@@ -1698,14 +1698,13 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $sound = array_key_exists('sound', $request) ? $request['sound'] : null;
                     $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
 
                     if (!$key) {
                         $key = md5(uniqid(rand(), true));
                     }
 
-                    if ($sound && $projectId) {
+                    if ($key && $projectId) {
                         $finalDestinationKey = $projectId.'/'.$key.'.opus';
                         $cmd = $this->clientS3->getCommand('PutObject', [
                             'Bucket' => $this->ttsBucket,
