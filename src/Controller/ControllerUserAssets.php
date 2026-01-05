@@ -1772,8 +1772,9 @@ class ControllerUserAssets
             },
             "delete-audio-tts" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
-                    $key = !empty($_POST['key']) ? $_POST['key'] : null;
-                    $projectId = !empty($_POST['projectId']) ? $_POST['projectId'] : null;
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
 
                     if (!$key) {
                         return [
