@@ -1678,14 +1678,10 @@ class ControllerUserAssets
                         'Key' => $finalDestinationKey,
                     ]);
                     $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
-                    $soundsToGet[] = [
-                        "key" => $finalDestinationKey,
-                        "url" => (string) $request->getUri(),
-                    ];
                 
                     return [
                         "success" => true,
-                        "sounds" => $soundsToGet,
+                        "downloadUrl" => (string) $request->getUri(),
                     ];
                 } else {
                     return [
@@ -1734,7 +1730,7 @@ class ControllerUserAssets
                 }
             },
             "update-audio-tts" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                if ($_SERVER['REQUEST_METHOD'] == "PUT") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
                     $projectId = array_key_exists('projectId', $request) ? $request['projectId'] : null;
@@ -1765,7 +1761,7 @@ class ControllerUserAssets
                         "success" => true,
                         "uploadUrl" => (string) $request->getUri(),
                     ];
-                    
+
                 } else {
                     return [
                         "success" => false,
@@ -1774,7 +1770,7 @@ class ControllerUserAssets
                 }
             },
             "delete-audio-tts" => function () {
-                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                if ($_SERVER['REQUEST_METHOD'] == "DELETE") {
                     $key = !empty($_POST['key']) ? $_POST['key'] : null;
                     $projectId = !empty($_POST['projectId']) ? $_POST['projectId'] : null;
 
