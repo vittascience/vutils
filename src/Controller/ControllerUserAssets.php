@@ -37,6 +37,7 @@ class ControllerUserAssets
     protected $oneWeekAgo;
     protected $today;
     protected $ttsBucket;
+    protected $ttsSecretKey;
 
     public function __construct($entityManager, $user)
     {
@@ -70,6 +71,7 @@ class ControllerUserAssets
         $this->oneWeekAgo = (new \DateTime())->modify('-7 days');
         $this->today = (new \DateTime())->modify('today');
         $this->ttsBucket = empty($_ENV['VS_S3_TTS_BUCKET']) ? "vittai-tts" : $_ENV['VS_S3_TTS_BUCKET'];
+        $this->ttsSecretKey = empty($_ENV['VS_S3_TTS_SECRET_KEY']) ? 'default_secret_key_lY&2IH' : $_ENV['VS_S3_TTS_SECRET_KEY'];
     }
 
     public function action($action, $data = [])
@@ -1697,13 +1699,12 @@ class ControllerUserAssets
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-
+                    $userId = !empty($_SESSION['id']) ? $_SESSION['id'] : null;
                     if (!$key) {
                         $key = md5(uniqid(rand(), true));
                     }
-
-                    $folder  = md5(uniqid(rand(), true));
                     
+                    $folder = hash_hmac('sha256', $userId, $this->ttsSecretKey);
 
                     if ($key && $folder) {
                         $finalDestinationKey = $folder.'/'.$key.'.opus';
