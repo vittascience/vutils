@@ -71,7 +71,7 @@ class ControllerUserAssets
         $this->oneWeekAgo = (new \DateTime())->modify('-7 days');
         $this->today = (new \DateTime())->modify('today');
         $this->ttsBucket = empty($_ENV['VS_S3_TTS_BUCKET']) ? "vittai-tts" : $_ENV['VS_S3_TTS_BUCKET'];
-        $this->ttsSecretKey = empty($_ENV['VS_S3_TTS_SECRET_KEY']) ? 'default_secret_key_lY&2IH' : $_ENV['VS_S3_TTS_SECRET_KEY'];
+        $this->ttsSecretKey = empty($_ENV['VS_S3_SECRET_HASH_KEY']) ? 'default_secret_key_dev' : $_ENV['VS_S3_SECRET_HASH_KEY'];
     }
 
     public function action($action, $data = [])
