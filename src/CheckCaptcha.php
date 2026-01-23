@@ -11,8 +11,9 @@ class CheckCaptcha
     static public function checkCaptcha($userCode, $userIP)
     {
         $curl = curl_init();
-        $dotenv = Dotenv::createImmutable(__DIR__ . "/../");
-        $dotenv->load();
+        $dir  = is_file('/run/secrets/app_env') ? '/run/secrets' : __DIR__ . '/../';
+        $file = is_file('/run/secrets/app_env') ? 'app_env'      : '.env';
+        Dotenv::createImmutable($dir, $file)->safeLoad();
         $params = "secret=" . $_ENV['VS_CAPTCHA_SECRET'] . "&response=" . $userCode . "&remoteip=" . $userIP;
         curl_setopt($curl, CURLOPT_URL, "https://www.google.com/recaptcha/api/siteverify");
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);

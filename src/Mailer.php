@@ -23,12 +23,12 @@ class Mailer
      */
     public static function sendMail($recipient, $subject, $body, $altBody, $templateBody = 'fr_default', $replyToMail = null, $replyToName = null, $additionalAddress=null, $additionalCC=null)
     {
-       
         $mail = new PHPMailer(true);
         try {
-            $dotenv = Dotenv::createImmutable(__DIR__ . "/../../../../");
-            $dotenv->load();
-           
+            $dir  = is_file('/run/secrets/app_env') ? '/run/secrets' : __DIR__ . '/../../../../';
+            $file = is_file('/run/secrets/app_env') ? 'app_env'      : '.env';
+            Dotenv::createImmutable($dir, $file)->safeLoad();
+        
             // set values
             $replyToMail = isset($replyToMail) ? $replyToMail : $_ENV['VS_REPLY_TO_MAIL'];
             $replyToName = isset($replyToName) ? $replyToName : $_ENV['VS_REPLY_TO_NAME'];
