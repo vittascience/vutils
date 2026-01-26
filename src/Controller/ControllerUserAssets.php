@@ -36,6 +36,9 @@ class ControllerUserAssets
     protected $bucketGenerativeAssetsEndpoint;
     protected $oneMonthAgo;
     protected $oneWeekAgo;
+    protected $today;
+    protected $ttsBucket;
+    protected $ttsSecretKey;
 
     public function __construct($entityManager, $user)
     {
@@ -68,6 +71,8 @@ class ControllerUserAssets
         $this->oneMonthAgo = (new \DateTime())->modify('-1 month');
         $this->oneWeekAgo = (new \DateTime())->modify('-7 days');
         $this->today = (new \DateTime())->modify('today');
+        $this->ttsBucket = empty($_ENV['VS_S3_TTS_BUCKET']) ? "vittai-tts" : $_ENV['VS_S3_TTS_BUCKET'];
+        $this->ttsSecretKey = empty($_ENV['VS_S3_SECRET_HASH_KEY']) ? 'default_secret_key_dev' : $_ENV['VS_S3_SECRET_HASH_KEY'];
     }
 
     public function action($action, $data = [])
@@ -670,10 +675,10 @@ class ControllerUserAssets
                     $cfgScale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
                     $modelName = array_key_exists('modelName', $_POST) ? htmlspecialchars($_POST['modelName']) : null;
                     $creationSteps = array_key_exists('creationSteps', $_POST) ? $_POST['creationSteps'] : null;
-                    $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;                   
+                    $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;
                     $isCompetition = $isCompetition == 'false' ? 0 : 1;
-                    $score = array_key_exists('score', $_POST) ? $_POST['score'] : null;   
-               
+                    $score = array_key_exists('score', $_POST) ? $_POST['score'] : null;
+
                     $lng = $_COOKIE['lang'] ?? 'en';
                     if (!$name) {
                         return [
@@ -696,7 +701,7 @@ class ControllerUserAssets
 
                     $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
                     if ($isDuplicate) {
-                        $isDuplicate = array_filter($isDuplicate, function($asset) {
+                        $isDuplicate = array_filter($isDuplicate, function ($asset) {
                             return substr_count($asset->getCreationSteps(), '.png') !== 6;
                         });
 
@@ -736,7 +741,7 @@ class ControllerUserAssets
                         $generativeAsset->setScore($score);
                         $this->entityManager->persist($generativeAsset);
                         $this->entityManager->flush();
-    
+
                         return [
                             "success" => true,
                             "message" => "generative_asset_created",
@@ -840,10 +845,10 @@ class ControllerUserAssets
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
                         $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
-                    
+
                         // Convertir les IDs des images likées en un tableau simple pour une recherche rapide
                         $likedImageIds = array_column($myLikedImages, 'id');
-                    
+
                         // Ajouter l'information "isLiked" directement dans les assets
                         foreach ($assets as &$asset) {
                             $asset['isLiked'] = in_array($asset['id'], $likedImageIds, true);
@@ -875,8 +880,8 @@ class ControllerUserAssets
                     $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
 
                     $assets = $this->getBestAssetsOfThisWeek($start, $end, $limit, $from);
-                    $allAssets = $this->entityManager->getRepository(Competitions::class)->getTotalOfTheWeekCompetition($start, $end);                   
-                     $myLikedImages = [];
+                    $allAssets = $this->entityManager->getRepository(Competitions::class)->getTotalOfTheWeekCompetition($start, $end);
+                    $myLikedImages = [];
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
                         $myLikedImages = $this->entityManager->getRepository(UserLikeImage::class)->getIdsOfMyLikedAssets($user);
@@ -916,7 +921,7 @@ class ControllerUserAssets
                     $end = array_key_exists('end', $_POST) ? htmlspecialchars($_POST['end']) : null;
                     $from = array_key_exists('from', $_POST) ? htmlspecialchars($_POST['from']) : null;
                     $assets = $this->getAssetsOfGame($start, $end, $limit, $from);
-                    $allAssets = $this->entityManager->getRepository(Games::class)->getTotalOfTheGame($start, $end);                    
+                    $allAssets = $this->entityManager->getRepository(Games::class)->getTotalOfTheGame($start, $end);
                     $myLikedImages = [];
                     if (!empty($_SESSION['id'])) {
                         $user = $this->entityManager->getRepository(User::class)->find($_SESSION['id']);
@@ -992,7 +997,7 @@ class ControllerUserAssets
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                     $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
-    
+
                     $likes = $generativeAsset->getLikes();
                     if ($likes == 0) {
                         return [
@@ -1000,7 +1005,7 @@ class ControllerUserAssets
                             "message" => "You can't have negative likes.",
                         ];
                     }
-    
+
                     if (!empty($_SESSION['id'])) {
                         // remove the UserLikeImage if exist
                         $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
@@ -1010,7 +1015,7 @@ class ControllerUserAssets
                             $this->entityManager->flush();
                         }
                     }
-    
+
                     $generativeAsset->setLikes($likes - 1);
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
@@ -1375,7 +1380,7 @@ class ControllerUserAssets
                             break;
                         }
                     }
-                    
+
                     if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
                         $generatedUUID = $this->generateUUIDv4();
                         $_SESSION["assets_to_duplicate"] = [
@@ -1406,7 +1411,6 @@ class ControllerUserAssets
                             "assetsChecked" => count($assets),
                         ];
                     }
-
                 } catch (Exception $e) {
                     return [
                         "success" => false,
@@ -1473,7 +1477,7 @@ class ControllerUserAssets
                     "success" => true,
                     "message" => "duplicated",
                     "id" => $newAssets->getId(),
-                    
+
                 ];
             },
             "get_concours_generative_assets_per_page" => function () {
@@ -1553,7 +1557,7 @@ class ControllerUserAssets
                     $generativeAsset->setIsPublic(false);
                     $generativeAsset->setLikes(0);
                     $generativeAsset->setUser(null);
-                    
+
                     $this->entityManager->persist($generativeAsset);
                     $this->entityManager->flush();
                     return [
@@ -1570,7 +1574,7 @@ class ControllerUserAssets
             "get_all_competition" => function () {
                 try {
                     $competition = $this->entityManager->getRepository(Competitions::class)->getAllCompetitions();
-              
+
                     return [
                         "success" => true,
                         "assets" => $competition,
@@ -1585,7 +1589,7 @@ class ControllerUserAssets
             "get_all_games" => function () {
                 try {
                     $games = $this->entityManager->getRepository(Games::class)->getAllGames();
-              
+
                     return [
                         "success" => true,
                         "assets" => $games,
@@ -1600,7 +1604,7 @@ class ControllerUserAssets
             "get_current_game" => function () {
                 try {
                     $games = $this->entityManager->getRepository(Games::class)->getCurrentGame();
-              
+
                     return [
                         "success" => true,
                         "assets" => $games,
@@ -1650,6 +1654,174 @@ class ControllerUserAssets
                     $response->success = false;
                     $response->message = $e->getMessage();
                     return $response;
+                }
+            },
+            "get-audio-tts" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $folder = array_key_exists('folderId', $request) ? $request['folderId'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "no_key_provided",
+                        ];
+                    }
+
+                    if (!$folder) {
+                        return [
+                            "success" => false,
+                            "message" => "no_folder_id_provided",
+                        ];
+                    }
+
+                    $finalDestinationKey = $folder.'/'.$key.'.opus';
+                    $cmd = $this->clientS3->getCommand('GetObject', [
+                        'Bucket' => $this->ttsBucket,
+                        'Key' => $finalDestinationKey,
+                    ]);
+                    $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+                
+                    return [
+                        "success" => true,
+                        "downloadUrl" => (string) $request->getUri(),
+                        "key" => $key,
+                        "folderId" => $folder,
+                    ];
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "method_not_allowed",
+                    ];
+                }
+            },
+            "put-audio-tts" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $userId = !empty($_SESSION['id']) ? $_SESSION['id'] : null;
+                    if (!$key) {
+                        $key = md5(uniqid(rand(), true));
+                    }
+                    
+                    $folder = hash_hmac('sha256', $userId, $this->ttsSecretKey);
+
+                    if ($key && $folder) {
+                        $finalDestinationKey = $folder.'/'.$key.'.opus';
+                        $cmd = $this->clientS3->getCommand('PutObject', [
+                            'Bucket' => $this->ttsBucket,
+                            'Key' => $finalDestinationKey,
+                            'ContentType' => 'audio/opus',
+                        ]);
+                        $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+                
+                        return [
+                            "success" => true,
+                            "uploadUrl" => (string) $request->getUri(),
+                            "key" => $key,
+                            "folderId" => $folder,
+                        ];
+                    } else {
+                        return [
+                            "success" => false,
+                            "message" => "missing_data",
+                        ];
+                    }
+
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "method_not_allowed",
+                    ];
+                }
+            },
+            "update-audio-tts" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $folder = array_key_exists('folderId', $request) ? $request['folderId'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "no_key_provided",
+                        ];
+                    }
+
+                    if (!$folder) {
+                        return [
+                            "success" => false,
+                            "message" => "no_folder_id_provided",
+                        ];
+                    }
+
+                    $finalDestinationKey = $folder.'/'.$key.'.opus';
+                    $cmd = $this->clientS3->getCommand('PutObject', [
+                        'Bucket' => $this->ttsBucket,
+                        'Key' => $finalDestinationKey,
+                        'ContentType' => 'audio/opus',
+                    ]);
+                    $request = $this->clientS3->createPresignedRequest($cmd, '+2 minutes');
+            
+                    return [
+                        "success" => true,
+                        "uploadUrl" => (string) $request->getUri(),
+                        "key" => $key,
+                        "folderId" => $folder,
+                    ];
+
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "method_not_allowed",
+                    ];
+                }
+            },
+            "delete-audio-tts" => function () {
+                if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    $key = array_key_exists('key', $request) ? $request['key'] : null;
+                    $folder = array_key_exists('folderId', $request) ? $request['folderId'] : null;
+
+                    if (!$key) {
+                        return [
+                            "success" => false,
+                            "message" => "no_key_provided",
+                        ];
+                    }
+
+                    if (!$folder) {
+                        return [
+                            "success" => false,
+                            "message" => "no_project_id_provided",
+                        ];
+                    }
+
+                    $finalDestinationKey = $folder.'/'.$key.'.opus';
+
+                    try {
+                        $this->clientS3->deleteObject([
+                            'Bucket' => $this->ttsBucket,
+                            'Key'    => $finalDestinationKey,
+                        ]);
+
+                        return [
+                            "success" => true,
+                            "message" => "deleted",
+                        ];
+                    } catch (\Exception $e) {
+                        return [
+                            "success" => false,
+                            "message" => $e->getMessage(),
+                        ];
+                    }
+                } else {
+                    return [
+                        "success" => false,
+                        "error" => "method_not_allowed",
+                    ];
                 }
             },
             "admin-delete-from-scaleway" => function () {
@@ -1734,7 +1906,7 @@ class ControllerUserAssets
     function getGenerativeAssetsByFilters($filter = null, $page = 1, $limit = 20, $repository)
     {
         $offset = ($page - 1) * $limit;
-        
+
         $publicGenerativeAssets = null;
         switch ($filter) {
             case 'most-popular-today':
@@ -1756,7 +1928,7 @@ class ControllerUserAssets
                 $publicGenerativeAssets = $repository->findBy(['isPublic' => true], ['createdAt' => 'DESC'], $limit, $offset);
                 break;
         }
-        
+
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
         return $assetsUrls;
     }
@@ -1787,7 +1959,7 @@ class ControllerUserAssets
                 $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findBy(['user' => $user], ['createdAt' => 'DESC'], $limit, $offset);
                 break;
         }
-        
+
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
         return $assetsUrls;
     }
@@ -1805,7 +1977,7 @@ class ControllerUserAssets
     {
         $count = 0;
         switch ($filter) {
-   
+
             case 'most-recent':
                 $count = $repository->getCountAll(false, false, $mine, $user, $isPublic);
                 break;
@@ -1825,7 +1997,7 @@ class ControllerUserAssets
                 $count = $repository->getCountAll(false, false, $mine, $user, $isPublic);
                 break;
         }
-        
+
         return $count;
     }
 
@@ -1876,7 +2048,8 @@ class ControllerUserAssets
         return $assetsUrls;
     }
 
-    function processReturnFromFavorite($array = null) {
+    function processReturnFromFavorite($array = null)
+    {
         $likedImages = [];
         foreach ($array as $asset) {
             $likedImages[] = $asset->getImg();
@@ -1884,63 +2057,35 @@ class ControllerUserAssets
         return $likedImages;
     }
 
-    public function getBestAssetsOfThisWeek($start, $end, int $limit = 10, int $offset = 0){
+    public function getBestAssetsOfThisWeek($start, $end, int $limit = 10, int $offset = 0)
+    {
         // Calculer la date de début et de fin de la semaine cible
         $startOfWeek = new \DateTime($start);
         $startOfWeek->setTime(0, 0, 0);
         $endOfWeek = new \DateTime($end);
         $endOfWeek->setTime(23, 59, 59);
         $publicGenerativeAssets = [];
-        
+
         $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByWeek($startOfWeek, $endOfWeek, true, $limit, $offset);
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
         return $assetsUrls;
-        
     }
 
-    public function getAssetsOfGame($start, $end, int $limit = 10, int $offset = 0){
+    public function getAssetsOfGame($start, $end, int $limit = 10, int $offset = 0)
+    {
         // Calculer la date de début et de fin de la semaine cible
         $startOfWeek = new \DateTime($start);
         $startOfWeek->setTime(0, 0, 0);
         $endOfWeek = new \DateTime($end);
         $endOfWeek->setTime(23, 59, 59);
         $publicGenerativeAssets = [];
-        
+
         $publicGenerativeAssets = $this->entityManager->getRepository(GenerativeAssets::class)->findAssetsByGame($startOfWeek, $endOfWeek, true, $limit, $offset);
         $assetsUrls = $this->manageGenerativeAssets($publicGenerativeAssets, true);
 
 
         return $assetsUrls;
-        
     }
-
-
-/*     
-    function getCountOfMyFavoriteGenerativeAssetsByFilters($filter = null, $user)
-    {
-        $repository = $this->entityManager->getRepository(UserLikeImage::class)->getCountOfMyFavoriteSince($user, null);
-        $count = null;
-        switch ($filter) {
-            case 'most-recent':
-                $count = $repository->getCountOfMyFavoriteSince($user, null);
-                break;
-            case 'most-popular':
-                $count = $repository->getCountOfMyFavoriteSince($user, null);
-                break;
-            case 'most-popular-week':
-                $count = $repository->getCountOfMyFavoriteSince($user, null);
-                break;
-            case 'most-popular-month':
-                $count = $repository->getCountOfMyFavoriteSince($user, null);
-                break;
-            default:
-                $count = $repository->getCountOfMyFavoriteSince($user, null);
-                break;
-        }
-
-        return $count;
-    } 
-*/
 
     function getGenerativeAssetsFromScaleway(string $key)
     {
@@ -1981,7 +2126,7 @@ class ControllerUserAssets
                     "likes"         => $asset->getLikes(),
                     "createdAt"     => $asset->getCreatedAt()->format('Y-m-d H:i:s'),
                     "prompt"        => $asset->getPrompt(),
-                    "negativePrompt"=> $asset->getNegativePrompt(),
+                    "negativePrompt" => $asset->getNegativePrompt(),
                     "width"         => (int)$asset->getWidth(),
                     "height"        => (int)$asset->getHeight(),
                     "cfgScale"      => $asset->getCfgScale(),
@@ -1990,8 +2135,7 @@ class ControllerUserAssets
                     "creationSteps" => $asset->getCreationSteps(),
                     "score"        => $asset->getScore(),
                 ];
-            }
-            elseif (is_array($asset)) {
+            } elseif (is_array($asset)) {
                 if (isset($asset['is_public']) && $asset['is_public'] == 0 && $includeMine === false) {
                     continue;
                 }
@@ -2013,7 +2157,7 @@ class ControllerUserAssets
                     "likes"         => $asset['likes'],
                     "createdAt"     => $asset['created_at'],
                     "prompt"        => $asset['prompt'],
-                    "negativePrompt"=> $asset['negative_prompt'],
+                    "negativePrompt" => $asset['negative_prompt'],
                     "width"         => (int)$asset['witdh'],
                     "height"        => (int)$asset['height'],
                     "cfgScale"      => $asset['cfg_scale'],
@@ -2194,19 +2338,21 @@ class ControllerUserAssets
     }
 
 
-    private function generateUUIDv4() {
+    private function generateUUIDv4()
+    {
         // Générer 16 octets aléatoires
         $data = random_bytes(16);
-    
+
         // Modifier les bits pour correspondre à l'UUID version 4
         $data[6] = chr((ord($data[6]) & 0x0f) | 0x40); // Version 4
         $data[8] = chr((ord($data[8]) & 0x3f) | 0x80); // Variante RFC 4122
-    
+
         // Convertir en format UUID
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
-    private function isCreationStepsDuplicable(String $creationSteps) {
+    private function isCreationStepsDuplicable(String $creationSteps)
+    {
         $isDuplicable = false;
         if (is_string($creationSteps)) {
             $creationSteps = explode(',', $creationSteps);
