@@ -17,6 +17,7 @@ use Utils\Entity\Competitions;
 use Utils\Entity\Games;
 use Utils\Traits\UtilsAssetsTrait;
 use OpenStack\Identity\v3\Models\Token;
+use Interfaces\Entity\Project;
 
 class ControllerUserAssets
 {
@@ -1820,6 +1821,79 @@ class ControllerUserAssets
                     return [
                         "success" => false,
                         "error" => "method_not_allowed",
+                    ];
+                }
+            },
+            "admin-delete-from-scaleway" => function () {
+                $Autorisation = $this->entityManager->getRepository(Regular::class)->findOneBy(['user' => htmlspecialchars($_SESSION['id'])]);
+                if ($Autorisation->getIsAdmin() == 0) {
+                    return [
+                        "success" => false,
+                        "message" => "not_allowed",
+                    ];
+                }
+
+
+                $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                $projectLink = array_key_exists('projectLink', $request) ? $request['projectLink'] : null;
+                $userId = array_key_exists('userId', $request) ? $request['userId'] : null;
+
+                $imageFromUserId = null;
+                if ($projectLink) {
+                    $project = $this->entityManager->getRepository(Project::class)->findOneBy(['link' => $projectLink]);
+                    if ($project) {
+                        $imageFromUserId = $project->getUser();
+                    } else {
+                        return [
+                            "success" => false,
+                            "message" => "project_not_found",
+                        ];
+                    }
+                }
+
+                if ($userId) {
+                    $userExists = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $userId]);
+                    if (!$userExists) {
+                        return [
+                            "success" => false,
+                            "message" => "user_not_found",
+                        ];
+                    } else {
+                        $imageFromUserId = $userExists;
+                    }
+                }
+
+                $userAssets = $this->entityManager->getRepository(UserAssets::class)->findBy(['user' => $imageFromUserId]);
+                if (!$userAssets) {
+                    return [
+                        "success" => false,
+                        "message" => "no_assets_found",
+                    ];
+                }
+
+                $assetsLinks = [];
+                try {
+                    foreach ($userAssets as $asset) {
+                        $assetsLinks[] = $asset->getLink();
+                        $this->clientS3->deleteObject([
+                            'Bucket' => $this->bucket,
+                            'Key'    => $asset->getLink(),
+                        ]);
+                        $this->entityManager->remove($asset);
+                    }
+
+                    if (!empty($assetsLinks)) {
+                        $this->deleteMultipleAssetsS3($assetsLinks, $this->bucket);
+                    }
+
+                    return [
+                        "success" => true,
+                        "message" => "deleted",
+                    ];
+                } catch (\Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
                     ];
                 }
             },
