@@ -754,6 +754,42 @@ class ControllerUserAssets
                     ];
                 }
             },
+             "update_creation_steps" => function () {
+
+                try {
+                    $name = array_key_exists('name', $_POST) ? $_POST['name'] : null;
+                    $creationSteps = array_key_exists('creationSteps', $_POST) ? $_POST['creationSteps'] : null;
+                    if (!$name) {
+                        return [
+                            "success" => false,
+                            "message" => "No name provided",
+                        ];
+                    }
+
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['name' => $name]);
+
+                    if (!$generativeAsset) {
+                        return [
+                            "success" => false,
+                            "message" => "Asset not found",
+                        ];
+                    }
+
+                    $generativeAsset->setCreationSteps($creationSteps);
+                    $this->entityManager->persist($generativeAsset);
+                    $this->entityManager->flush();
+
+                    return [
+                        "success" => true,
+                        "message" => "creation_steps_updated",
+                    ];
+                } catch (Exception $e) {
+                    return [
+                        "success" => false,
+                        "message" => $e->getMessage(),
+                    ];
+                }
+            },
             "get_my_generative_assets" => function () {
                 try {
                     $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
@@ -1375,10 +1411,10 @@ class ControllerUserAssets
                     $assets = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
                     $isDuplicate = null;
                     foreach ($assets as $asset) {
-                        if (substr_count($asset->getCreationSteps(), '.png') === 6) {
+                        //if (substr_count($asset->getCreationSteps(), '.png') === 6) {
                             $isDuplicate = $asset;
                             break;
-                        }
+                       // }
                     }
 
                     if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
