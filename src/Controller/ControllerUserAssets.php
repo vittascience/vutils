@@ -1386,13 +1386,13 @@ class ControllerUserAssets
                     ];
                 }
             },
-            "check_duplicate_generative_assets" => function () {
+              "check_duplicate_generative_assets" => function () {
                 $prompt = array_key_exists('prompt', $_POST) ? $_POST['prompt'] : null;
                 $negativePrompt = array_key_exists('negativePrompt', $_POST) ? $_POST['negativePrompt'] : null;
                 $width = array_key_exists('width', $_POST) ? htmlspecialchars($_POST['width']) : null;
                 $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
                 $scale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
-                $modelName = array_key_exists('model', $_POST) ? htmlspecialchars($_POST['model']) : null;
+                $modelName = array_key_exists('modelLink', $_POST) ? htmlspecialchars($_POST['modelLink']) : null;
 
                 if (!$prompt || !$width || !$height || !$scale || !$modelName) {
                     return [
@@ -1411,12 +1411,12 @@ class ControllerUserAssets
                     $assets = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
                     $isDuplicate = null;
                     foreach ($assets as $asset) {
-                        //if (substr_count($asset->getCreationSteps(), '.png') === 6) {
+                       // if (substr_count($asset->getCreationSteps(), '.png') === 1) {
                             $isDuplicate = $asset;
                             break;
                        // }
                     }
-
+                    
                     if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
                         $generatedUUID = $this->generateUUIDv4();
                         $_SESSION["assets_to_duplicate"] = [
@@ -1447,6 +1447,7 @@ class ControllerUserAssets
                             "assetsChecked" => count($assets),
                         ];
                     }
+
                 } catch (Exception $e) {
                     return [
                         "success" => false,
