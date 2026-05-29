@@ -1411,10 +1411,8 @@ class ControllerUserAssets
                     $assets = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
                     $isDuplicate = null;
                     foreach ($assets as $asset) {
-                       // if (substr_count($asset->getCreationSteps(), '.png') === 1) {
-                            $isDuplicate = $asset;
-                            break;
-                       // }
+                        $isDuplicate = $asset;
+                        break;
                     }
                     
                     if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {

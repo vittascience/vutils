@@ -4,65 +4,52 @@ namespace Utils\Repository;
 
 use User\Entity\User;
 use Doctrine\ORM\EntityRepository;
+use Doctrine\ORM\Query\ResultSetMappingBuilder;
 use Utils\Entity\GenerativeAssets;
 
 class GenerativeAssetsRepository extends EntityRepository
 {
     public function getAssetsIfDuplicateExists(String $prompt, ?String $negativePrompt, $width, $height, $scale, $modelName)
     {
-        $qb = $this->getEntityManager()->createQueryBuilder();
-        $qb->select('g')
-            ->from(GenerativeAssets::class, 'g')
-            ->where('g.prompt = :prompt');
+        $rsm = new ResultSetMappingBuilder($this->getEntityManager());
+        $rsm->addRootEntityFromClassMetadata(GenerativeAssets::class, 'g');
 
-        if (!empty($negativePrompt)) {
-            $qb->andWhere('g.negativePrompt = :negativePrompt');
-        }
-
-        $qb->andWhere('g.width = :width')
-            ->andWhere('g.height = :height')
-            ->andWhere('g.cfgScale = :scale')
-            ->andWhere('g.modelName = :modelName')
-            ->andWhere('g.creationSteps IS NOT NULL')
-            ->setParameter('prompt', $prompt)
-            ->setParameter('width', $width)
-            ->setParameter('height', $height)
-            ->setParameter('scale', $scale)
-            ->setParameter('modelName', $modelName);
-
-        if (!empty($negativePrompt)) {
-            $qb->setParameter('negativePrompt', $negativePrompt);
-        }
-
-        $qb->setMaxResults(10);
-
-        $response = $qb->getQuery()->getResult();
-
-        return $response;
+        return $this->getEntityManager()
+            ->createNativeQuery(
+                "SELECT g.* FROM generative_assets g
+                 WHERE g.duplicate_key = MD5(CONCAT_WS('|',
+                     ?, COALESCE(?, ''), COALESCE(?, ''),
+                     CAST(COALESCE(?, 0) AS CHAR),
+                     CAST(COALESCE(?, 0) AS CHAR),
+                     CAST(COALESCE(?, 0) AS CHAR)
+                 ))
+                 AND g.creation_steps IS NOT NULL
+                 LIMIT 10",
+                $rsm
+            )
+            ->setParameters([$prompt, $negativePrompt, $modelName, $width, $height, $scale])
+            ->getResult();
     }
 
     public function getAllAssetsIfDuplicateExists(String $prompt, ?String $negativePrompt, $width, $height, $scale, $modelName)
     {
-        $isDuplicate = $this->getEntityManager()->createQueryBuilder()
-                ->select('g')
-                ->from(GenerativeAssets::class, 'g')
-                ->where('g.prompt = :prompt')
-                ->andWhere('g.negativePrompt = :negativePrompt')
-                ->andWhere('g.width = :width')
-                ->andWhere('g.height = :height')
-                ->andWhere('g.cfgScale = :scale')
-                ->andWhere('g.modelName = :modelName')
-                ->andWhere('g.creationSteps IS NOT NULL') // Ajout de la condition IS NOT NULL
-                ->setParameter('prompt', $prompt)
-                ->setParameter('negativePrompt', $negativePrompt)
-                ->setParameter('width', $width)
-                ->setParameter('height', $height)
-                ->setParameter('scale', $scale)
-                ->setParameter('modelName', $modelName)
-                ->getQuery()
-                ->getResult();
-        
-        return $isDuplicate;
+        $rsm = new ResultSetMappingBuilder($this->getEntityManager());
+        $rsm->addRootEntityFromClassMetadata(GenerativeAssets::class, 'g');
+
+        return $this->getEntityManager()
+            ->createNativeQuery(
+                "SELECT g.* FROM generative_assets g
+                 WHERE g.duplicate_key = MD5(CONCAT_WS('|',
+                     ?, COALESCE(?, ''), COALESCE(?, ''),
+                     CAST(COALESCE(?, 0) AS CHAR),
+                     CAST(COALESCE(?, 0) AS CHAR),
+                     CAST(COALESCE(?, 0) AS CHAR)
+                 ))
+                 AND g.creation_steps IS NOT NULL",
+                $rsm
+            )
+            ->setParameters([$prompt, $negativePrompt, $modelName, $width, $height, $scale])
+            ->getResult();
     }
     
     public function getAllAssetsWithPrefix(String $prefix, User $user = null) {
