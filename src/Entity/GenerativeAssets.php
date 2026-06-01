@@ -125,6 +125,12 @@ class GenerativeAssets implements \JsonSerializable
     private $score;
 
     /**
+     * @ORM\Column(name="time", type="string", length=255, nullable=true)
+     * @var string
+     */
+    private $time;
+
+    /**
      * @return Integer
      */
     public function getId(): ?int
@@ -333,6 +339,17 @@ class GenerativeAssets implements \JsonSerializable
         $this->score = $score;
         return $this;
     }
+
+    public function getTime(): ?string
+    {
+        return $this->time;
+    }
+
+    public function setTime(?string $time): self
+    {
+        $this->time = $time;
+        return $this;
+    }
     
     public function jsonSerialize()
     {
@@ -354,7 +371,8 @@ class GenerativeAssets implements \JsonSerializable
             'adminReview' => $this->adminReview,
             'creationSteps' => $this->creationSteps,
             'isCompetition' => $this->isCompetition,
-            'score'=>$this->score
+            'score'=>$this->score,
+            'time'=>$this->time
         ];
     }
 

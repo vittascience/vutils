@@ -678,6 +678,13 @@ class ControllerUserAssets
                     $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;
                     $isCompetition = $isCompetition == 'false' ? 0 : 1;
                     $score = array_key_exists('score', $_POST) ? $_POST['score'] : null;
+                    $totalMs = array_key_exists('totalMs', $_POST) ? htmlspecialchars($_POST['totalMs']) : null;
+                    $inferenceMs = array_key_exists('inferenceMs', $_POST) ? htmlspecialchars($_POST['inferenceMs']) : null;
+
+                    $timeFromCreation = [
+                        'totalMs' => $totalMs,
+                        'inferenceMs' => $inferenceMs,
+                    ];
 
                     $lng = $_COOKIE['lang'] ?? 'en';
                     if (!$name) {
@@ -733,6 +740,7 @@ class ControllerUserAssets
                         /* To add in future update */
                         //$generativeAsset->setIsDuplicable($isDuplicable);
                         $generativeAsset->setScore($score);
+                        $generativeAsset->setTime(json_encode($timeFromCreation));
                         $this->entityManager->persist($generativeAsset);
                         $this->entityManager->flush();
 
