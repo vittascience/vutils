@@ -699,17 +699,11 @@ class ControllerUserAssets
                         }
                     }
 
-                    $isDuplicate = $this->entityManager->getRepository(GenerativeAssets::class)->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
+                    $isDuplicate = $this->findGenerativeAssetDuplicates($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
                     if ($isDuplicate) {
-                        $isDuplicate = array_filter($isDuplicate, function ($asset) {
-                            return substr_count($asset->getCreationSteps(), '.png') !== 6;
-                        });
-
-                        foreach ($isDuplicate as $duplicate) {
-                            $duplicate->setCreationSteps($creationSteps);
-                            $this->entityManager->persist($duplicate);
-                        }
-
+                        $mostRecent = $isDuplicate[0];
+                        $mostRecent->setCreationSteps($creationSteps);
+                        $this->entityManager->persist($mostRecent);
                         $this->entityManager->flush();
 
                         return [
@@ -1408,12 +1402,8 @@ class ControllerUserAssets
                     ];
                 }
                 try {
-                    $assets = $this->entityManager->getRepository(GenerativeAssets::class)->getAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $scale, $modelName);
-                    $isDuplicate = null;
-                    foreach ($assets as $asset) {
-                        $isDuplicate = $asset;
-                        break;
-                    }
+                    $assets = $this->findGenerativeAssetDuplicates($prompt, $negativePrompt, $width, $height, $scale, $modelName);
+                    $isDuplicate = !empty($assets) ? $assets[0] : null;
                     
                     if ($_SESSION && array_key_exists('id', $_SESSION) && $isDuplicate) {
                         $generatedUUID = $this->generateUUIDv4();
@@ -2372,6 +2362,19 @@ class ControllerUserAssets
         }
     }
 
+
+    private function findGenerativeAssetDuplicates(
+        ?string $prompt,
+        ?string $negativePrompt,
+        $width,
+        $height,
+        $cfgScale,
+        ?string $modelName
+    ): array {
+        return $this->entityManager
+            ->getRepository(GenerativeAssets::class)
+            ->getAllAssetsIfDuplicateExists($prompt, $negativePrompt, $width, $height, $cfgScale, $modelName);
+    }
 
     private function generateUUIDv4()
     {

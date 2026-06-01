@@ -45,7 +45,8 @@ class GenerativeAssetsRepository extends EntityRepository
                      CAST(COALESCE(?, 0) AS CHAR),
                      CAST(COALESCE(?, 0) AS CHAR)
                  ))
-                 AND g.creation_steps IS NOT NULL",
+                 AND g.creation_steps IS NOT NULL
+                 ORDER BY g.created_at DESC",
                 $rsm
             )
             ->setParameters([$prompt, $negativePrompt, $modelName, $width, $height, $scale])
