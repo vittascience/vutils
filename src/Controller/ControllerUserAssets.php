@@ -731,7 +731,9 @@ class ControllerUserAssets
                         $generativeAsset->setLang($lng);
                         $generativeAsset->setWidth($width);
                         $generativeAsset->setHeight($height);
-                        $generativeAsset->setCfgScale($cfgScale);
+                        if ($cfgScale) {
+                            $generativeAsset->setCfgScale($cfgScale);
+                        }
                         $generativeAsset->setLikes(0);
                         $generativeAsset->setModelName($modelName);
                         $generativeAsset->setAdminReview(false);
