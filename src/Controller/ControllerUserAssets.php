@@ -1397,8 +1397,11 @@ class ControllerUserAssets
                 $height = array_key_exists('height', $_POST) ? htmlspecialchars($_POST['height']) : null;
                 $scale = array_key_exists('cfgScale', $_POST) ? htmlspecialchars($_POST['cfgScale']) : null;
                 $modelName = array_key_exists('modelLink', $_POST) ? htmlspecialchars($_POST['modelLink']) : null;
+                if ($scale === "") {
+                    $scale = null;
+                }
 
-                if (!$prompt || !$width || !$height || !$scale || !$modelName) {
+                if (!$prompt || !$width || !$height || !$modelName) {
                     return [
                         "success" => false,
                         "message" => "missing_data",
@@ -1406,7 +1409,6 @@ class ControllerUserAssets
                             "prompt" => $prompt,
                             "width" => $width,
                             "height" => $height,
-                            "scale" => $scale,
                             "modelName" => $modelName,
                         ]
                     ];
@@ -1493,7 +1495,9 @@ class ControllerUserAssets
                 $newAssets->setNegativePrompt($isDuplicate->getNegativePrompt());
                 $newAssets->setWidth($isDuplicate->getWidth());
                 $newAssets->setHeight($isDuplicate->getHeight());
-                $newAssets->setCfgScale($isDuplicate->getCfgScale());
+                if ($isDuplicate->getCfgScale() !== null) {
+                    $newAssets->setCfgScale($isDuplicate->getCfgScale());
+                }
                 $newAssets->setModelName($isDuplicate->getModelName());
                 $newAssets->setUser($user);
                 $newAssets->setCreatedAt(new \DateTime('now', new \DateTimeZone('Europe/Paris')));
