@@ -721,7 +721,7 @@ class ControllerUserAssets
                     } else {
                         $isPremiumUser = false;
                         if ($userCheck !== null) {
-                            $restrictions = UtilsTrait::getUserRestrictions($this->entityManager);
+                            $restrictions = UtilsTrait::getUserRestrictions($this->entityManager, $userCheck->getId());
                             $isPremiumUser = !empty($restrictions['premium']) && $restrictions['premium'] === true;
                         }
                         $isPublic = !$isPremiumUser;
