@@ -16,6 +16,7 @@ use Utils\Entity\UserLikeImage;
 use Utils\Entity\Competitions;
 use Utils\Entity\Games;
 use Utils\Traits\UtilsAssetsTrait;
+use User\Traits\UtilsTrait;
 use OpenStack\Identity\v3\Models\Token;
 use Interfaces\Entity\Project;
 
@@ -718,7 +719,12 @@ class ControllerUserAssets
                             "message" => "generative_asset_updated",
                         ];
                     } else {
-                        $isPublic = $userCheck ? true : false;
+                        $isPremiumUser = false;
+                        if ($userCheck !== null) {
+                            $restrictions = UtilsTrait::getUserRestrictions($this->entityManager);
+                            $isPremiumUser = !empty($restrictions['premium']) && $restrictions['premium'] === true;
+                        }
+                        $isPublic = !$isPremiumUser;
 
                         $generativeAsset = new GenerativeAssets();
                         $generativeAsset->setName($name);
@@ -1570,6 +1576,40 @@ class ControllerUserAssets
                     ];
                 }
             },
+            "toggle_generative_asset_visibility" => function () {
+                $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
+
+                try {
+                    if (empty($_SESSION['id'])) {
+                        return ["success" => false, "message" => "not_authenticated"];
+                    }
+
+                    $restrictions = UtilsTrait::getUserRestrictions($this->entityManager);
+                    if (empty($restrictions['premium']) || $restrictions['premium'] !== true) {
+                        return ["success" => false, "message" => "not_premium"];
+                    }
+
+                    $user = $this->entityManager->getRepository(User::class)->findOneBy(['id' => $_SESSION['id']]);
+                    $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id, 'user' => $user]);
+
+                    if (!$generativeAsset) {
+                        return ["success" => false, "message" => "not_found"];
+                    }
+
+                    $newVisibility = !$generativeAsset->getIsPublic();
+                    $generativeAsset->setIsPublic($newVisibility);
+
+                    $this->entityManager->persist($generativeAsset);
+                    $this->entityManager->flush();
+
+                    return [
+                        "success" => true,
+                        "isPublic" => $newVisibility,
+                    ];
+                } catch (Exception $e) {
+                    return ["success" => false, "message" => $e->getMessage()];
+                }
+            },
             "set_private_generative_asset" => function () {
                 $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
 
@@ -2173,6 +2213,7 @@ class ControllerUserAssets
                     "creator"       => $creator,
                     "creationSteps" => $asset->getCreationSteps(),
                     "score"        => $asset->getScore(),
+                    "isPublic"      => $asset->getIsPublic(),
                 ];
             } elseif (is_array($asset)) {
                 if (isset($asset['is_public']) && $asset['is_public'] == 0 && $includeMine === false) {
@@ -2204,6 +2245,7 @@ class ControllerUserAssets
                     "creator"       => $creator,
                     "creationSteps" => $asset['creation_steps'],
                     "score"        => $asset['score'],
+                    "isPublic"      => isset($asset['is_public']) ? (bool)$asset['is_public'] : null,
                 ];
             }
         }
