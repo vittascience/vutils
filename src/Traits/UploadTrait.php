@@ -5,7 +5,6 @@ namespace Utils\Traits;
 use User\Entity\User;
 use Utils\Entity\UserImg;
 use Aws\S3\S3Client;
-use Aws\Exception\AwsException;
 
 trait UploadTrait
 {
@@ -15,6 +14,9 @@ trait UploadTrait
     protected $s3Client;
     protected $s3Bucket;
     protected $s3PublicBaseUrl;
+    // S3 is in test phase: any missing config or SDK failure disables it, it
+    // never takes down the (still-authoritative) local upload path.
+    protected $s3Enabled = false;
 
     public function __construct($entityManager, $user)
     {
@@ -25,22 +27,30 @@ trait UploadTrait
             ? rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'], '/')
             : "https://vittai-user-assets-dev.s3.fr-par.scw.cloud";
 
-        $this->s3Client = new S3Client([
-            'credentials' => [
-                'key' => $_ENV['VS_S3_KEY'],
-                'secret' => $_ENV['VS_S3_SECRET']
-            ],
-            'region' => 'fr-par',
-            'version' => 'latest',
-            'endpoint' => 'https://s3.fr-par.scw.cloud',
-            'signature_version' => 'v4'
-        ]);
+        $this->s3Bucket = !empty($_ENV['VS_S3_BUCKET_USER'])
+            ? $_ENV['VS_S3_BUCKET_USER']
+            : "vittai-user-assets-dev";
 
-        $this->s3Bucket = "vittai-user-assets-dev";
-        if (isset($_ENV['VS_S3_BUCKET_USER'])) {
-            if (!empty($_ENV['VS_S3_BUCKET_USER'])) {
-                $this->s3Bucket = $_ENV['VS_S3_BUCKET_USER'];
-            }
+        if (empty($_ENV['VS_S3_KEY']) || empty($_ENV['VS_S3_SECRET'])) {
+            error_log("UploadTrait: VS_S3_KEY/VS_S3_SECRET manquant(s), service S3 désactivé");
+            return;
+        }
+
+        try {
+            $this->s3Client = new S3Client([
+                'credentials' => [
+                    'key' => $_ENV['VS_S3_KEY'],
+                    'secret' => $_ENV['VS_S3_SECRET']
+                ],
+                'region' => 'fr-par',
+                'version' => 'latest',
+                'endpoint' => 'https://s3.fr-par.scw.cloud',
+                'signature_version' => 'v4'
+            ]);
+            $this->s3Enabled = true;
+        } catch (\Throwable $e) {
+            error_log("UploadTrait: échec d'initialisation du client S3, service désactivé: " . $e->getMessage());
+            $this->s3Client = null;
         }
     }
 
@@ -154,6 +164,14 @@ trait UploadTrait
             ];
         }
 
+        if (!$this->s3Enabled) {
+            return [
+                'success' => false,
+                'message' => 'S3 service disabled (missing or invalid configuration)',
+                'key'     => $key,
+            ];
+        }
+
         try {
             $this->s3Client->deleteObject([
                 'Bucket' => $this->s3Bucket,
@@ -165,7 +183,7 @@ trait UploadTrait
                 'message' => 'File deleted successfully from S3',
                 'key'     => $key
             ];
-        } catch (AwsException $e) {
+        } catch (\Throwable $e) {
             return [
                 'success' => false,
                 'message' => 'S3 deletion failed: ' . $e->getMessage(),
@@ -184,6 +202,10 @@ trait UploadTrait
      */
     public function uploadFileToS3(string $localPath, string $s3Key, string $contentType): bool
     {
+        if (!$this->s3Enabled) {
+            return false;
+        }
+
         try {
             $this->s3Client->putObject([
                 'Bucket' => $this->s3Bucket,
@@ -193,7 +215,7 @@ trait UploadTrait
                 'ContentType' => $contentType,
             ]);
             return true;
-        } catch (AwsException $e) {
+        } catch (\Throwable $e) {
             error_log("Erreur S3 upload ({$s3Key}): " . $e->getMessage());
             return false;
         }
@@ -268,6 +290,10 @@ trait UploadTrait
             return ['errors' => [['errorType' => 'notAuthenticated']]];
         }
 
+        if (!$this->s3Enabled) {
+            return ['errors' => [['errorType' => 's3Disabled']]];
+        }
+
         $fieldName = $options['fieldName'];
 
         if (empty($_FILES[$fieldName])) {
@@ -334,7 +360,7 @@ trait UploadTrait
                 'ACL' => 'public-read',
                 'ContentType' => $mimeType ?: $options['defaultContentType'],
             ]);
-        } catch (AwsException $e) {
+        } catch (\Throwable $e) {
             return [
                 'errors' => [
                     [
