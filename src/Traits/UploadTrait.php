@@ -49,6 +49,8 @@ trait UploadTrait
         }
         $this->s3Initialized = true;
 
+        $this->loadEnvIfNeeded();
+
         $this->s3PublicBaseUrl = !empty($_ENV['VS_S3_USER_PUBLIC_BASE_URL'])
             ? rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'], '/')
             : "https://vittai-user-assets-dev.s3.fr-par.scw.cloud";
@@ -77,6 +79,34 @@ trait UploadTrait
         } catch (\Throwable $e) {
             error_log("UploadTrait: échec d'initialisation du client S3, service désactivé: " . $e->getMessage());
             $this->s3Client = null;
+        }
+    }
+
+    /**
+     * Several lightweight AJAX endpoints (postProfile.php, bdcProcess.php,
+     * kitMedia.php...) only require vendor/autoload.php, never the app's
+     * bootstrap.php — so $_ENV can still be empty here even in production
+     * with a correctly filled .env. bootstrap.php itself is too heavy to
+     * pull in just for this (it opens a Doctrine/DB connection on load), so
+     * this replicates only its two-line env-loading step as a fallback.
+     */
+    private function loadEnvIfNeeded(): void
+    {
+        if (!empty($_ENV['VS_S3_KEY'])) {
+            return;
+        }
+        if (!class_exists(\Dotenv\Dotenv::class)) {
+            return;
+        }
+
+        $appRoot = dirname(__DIR__, 5); // .../vendor/vittascience/vutils/src/Traits -> app root
+        $dir  = is_file('/run/secrets/app_env') ? '/run/secrets' : $appRoot;
+        $file = is_file('/run/secrets/app_env') ? 'app_env'      : '.env';
+
+        try {
+            \Dotenv\Dotenv::createImmutable($dir, $file)->safeLoad();
+        } catch (\Throwable $e) {
+            error_log("UploadTrait: échec du chargement de secours de l'env: " . $e->getMessage());
         }
     }
 
