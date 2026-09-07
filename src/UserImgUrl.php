@@ -20,7 +20,7 @@ class UserImgUrl
             }
         }
 
-        if (($_ENV['VS_USER_IMG_STORAGE'] ?? 'volume') !== 's3') {
+        if (($_ENV['VS_STORAGE_MODE'] ?? 'volume') !== 's3') {
             return '/public/content/user_data/user_img/' . $picture;
         }
 
