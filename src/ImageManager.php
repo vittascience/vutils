@@ -1,13 +1,9 @@
 <?php
 
 namespace Utils;
-use Utils\Traits\UploadTrait;
-
 
 class ImageManager
 {
-    use UploadTrait;
-
     private static $sharedInstance;
     private function __construct()
     { }
@@ -151,12 +147,6 @@ class ImageManager
         if (!imagecopyresampled($virtual_image, $source_image, 0, 0, 0, 0, $desired_width, $desired_height, $width, $height))
             return false;
 
-        // s3 upload
-        try {
-            $this->uploadFileToS3($destination, 'user_data/user_img/ ' . basename($destination), 'image/jpeg');
-        } catch (\Exception $e) {
-            error_log("Erreur lors de l'upload S3 de la miniature: " . $e->getMessage());
-        }
         /* create the physical thumbnail image to its destination */
         return imagejpeg($virtual_image, $destination, 90);
     }
