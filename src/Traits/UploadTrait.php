@@ -8,14 +8,11 @@ use Aws\S3\S3Client;
 
 trait UploadTrait
 {
-    // Prefixed to avoid clashing with a host class's own $user/$entityManager (fatal trait-composition error otherwise).
     protected $uploadEntityManager;
     protected $uploadUser;
     protected $s3Client;
     protected $s3Bucket;
     protected $s3PublicBaseUrl;
-    // S3 is in test phase: any missing config or SDK failure disables it, it
-    // never takes down the (still-authoritative) local upload path.
     protected $s3Enabled = false;
     private $s3Initialized = false;
 
@@ -26,7 +23,6 @@ trait UploadTrait
         $this->ensureS3Client();
     }
 
-    // Lazy init: many host classes never actually run our __construct() (own constructor shadows it, or a Doctrine entity bypasses it), so every S3 method calls this instead of assuming it ran.
     private function ensureS3Client(): void
     {
         if ($this->s3Initialized) {
@@ -67,7 +63,6 @@ trait UploadTrait
         }
     }
 
-    // Fallback: some endpoints never require the app's bootstrap.php, so $_ENV can still be empty here.
     private function loadEnvIfNeeded(): void
     {
         if (!empty($_ENV['VS_S3_KEY'])) {
@@ -77,7 +72,7 @@ trait UploadTrait
             return;
         }
 
-        $appRoot = dirname(__DIR__, 5); // .../vendor/vittascience/vutils/src/Traits -> app root
+        $appRoot = dirname(__DIR__, 5);
         $dir  = is_file('/run/secrets/app_env') ? '/run/secrets' : $appRoot;
         $file = is_file('/run/secrets/app_env') ? 'app_env'      : '.env';
 
