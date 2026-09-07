@@ -1,0 +1,413 @@
+<?php
+
+namespace Utils\Traits;
+
+use User\Entity\User;
+use Utils\Entity\UserImg;
+use Aws\S3\S3Client;
+
+trait UploadTrait
+{
+    // Prefixed (not $entityManager/$user) because several host classes are
+    // entities or controllers that already declare their own same-named
+    // property with a different visibility (e.g. Learn\Entity\Course::$user
+    // is private) — PHP treats that as a fatal "incompatible property"
+    // trait-composition error, not a harmless override.
+    protected $uploadEntityManager;
+    protected $uploadUser;
+    protected $s3Client;
+    protected $s3Bucket;
+    protected $s3PublicBaseUrl;
+    // S3 is in test phase: any missing config or SDK failure disables it, it
+    // never takes down the (still-authoritative) local upload path.
+    protected $s3Enabled = false;
+    private $s3Initialized = false;
+
+    public function __construct($entityManager, $user)
+    {
+        $this->uploadEntityManager = $entityManager;
+        $this->uploadUser = $user;
+        $this->ensureS3Client();
+    }
+
+    /**
+     * Lazily sets up the S3 client, independently of __construct().
+     *
+     * Several consumers never actually run UploadTrait::__construct(): a
+     * class with its own same-signature constructor silently shadows it
+     * (PHP always prefers the class's own method over a trait's), and a
+     * Doctrine entity is hydrated from the database by reflection, bypassing
+     * its PHP constructor entirely. Every S3-facing method below calls this
+     * first instead of assuming the constructor ran, so the client gets
+     * built on first real use no matter which class mixes the trait in.
+     * Idempotent and safe to call from anywhere, any number of times.
+     */
+    private function ensureS3Client(): void
+    {
+        if ($this->s3Initialized) {
+            return;
+        }
+        $this->s3Initialized = true;
+
+        $this->s3PublicBaseUrl = !empty($_ENV['VS_S3_USER_PUBLIC_BASE_URL'])
+            ? rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'], '/')
+            : "https://vittai-user-assets-dev.s3.fr-par.scw.cloud";
+
+        $this->s3Bucket = !empty($_ENV['VS_S3_BUCKET_USER'])
+            ? $_ENV['VS_S3_BUCKET_USER']
+            : "vittai-user-assets-dev";
+
+        if (empty($_ENV['VS_S3_KEY']) || empty($_ENV['VS_S3_SECRET'])) {
+            error_log("UploadTrait: VS_S3_KEY/VS_S3_SECRET manquant(s), service S3 désactivé");
+            return;
+        }
+
+        try {
+            $this->s3Client = new S3Client([
+                'credentials' => [
+                    'key' => $_ENV['VS_S3_KEY'],
+                    'secret' => $_ENV['VS_S3_SECRET']
+                ],
+                'region' => 'fr-par',
+                'version' => 'latest',
+                'endpoint' => 'https://s3.fr-par.scw.cloud',
+                'signature_version' => 'v4'
+            ]);
+            $this->s3Enabled = true;
+        } catch (\Throwable $e) {
+            error_log("UploadTrait: échec d'initialisation du client S3, service désactivé: " . $e->getMessage());
+            $this->s3Client = null;
+        }
+    }
+
+    protected function buildPublicUrl(string $key): string | false
+    {
+        if (!empty($this->s3PublicBaseUrl)) {
+            return $this->s3PublicBaseUrl . '/' . ltrim($key, '/');
+        }
+        return false;
+    }
+
+    public function uploadImgFromTextEditor()
+    {
+        $title = !empty($_POST['title']) ? $_POST['title'] : null;
+
+        $result = $this->handleUploadToS3([
+            'fieldName' => 'image',
+            'allowedExtensions' => ['jpg', 'jpeg', 'png', 'svg', 'webp', 'gif', 'apng'],
+            'maxSize' => 3_000_000,
+            'subDir' => 'user_data/resources',
+            'customBaseName' => $title,
+            'defaultContentType' => 'application/octet-stream',
+            'requireAuth' => true,
+        ]);
+
+        if (!empty($result['errors'])) {
+            return $result;
+        }
+
+        $user = $this->uploadEntityManager->getRepository(User::class)->find($this->uploadUser["id"]);
+        $userImg = new UserImg();
+        $userImg->setUser($user);
+        $userImg->setImg($result['key']);
+        $userImg->setIsPublic(0);
+
+        $this->uploadEntityManager->persist($userImg);
+        $this->uploadEntityManager->flush();
+
+        return [
+            'filename' => $result['filename'],
+            'src' => $result['src'],
+        ];
+    }
+
+    public function getAllMyImages()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return ["error" => "Method not Allowed"];
+        if (empty($_SESSION['id'])) return ["errorType" => "uploadFileFromTextEditorNotAuthenticated"];
+
+        $user = $this->uploadEntityManager->getRepository(User::class)->find($this->uploadUser["id"]);
+        $userImgs = $this->uploadEntityManager->getRepository(UserImg::class)->findBy(["user" => $user]);
+        $userFiles = [];
+
+        foreach ($userImgs as $userImg) {
+            $key = $userImg->getImg();
+            $userFiles[] = [
+                "id" => $userImg->getId(),
+                "filename" => basename($key),
+                "src" => $this->buildPublicUrl($key),
+                "isPublic" => $userImg->getIsPublic(),
+            ];
+        }
+
+        return $userFiles;
+    }
+
+    public function deleteImage()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return ["error" => "Method not Allowed"];
+        if (empty($_SESSION['id'])) return ["errorType" => "uploadFileFromTextEditorNotAuthenticated"];
+
+        $imageId = !empty($_POST['id']) ? intval($_POST['id']) : 0;
+        if (empty($imageId)) return ["errorType" => "invalidImageId"];
+
+        $user = $this->uploadEntityManager->getRepository(User::class)->find($this->uploadUser["id"]);
+        $userImgs = $this->uploadEntityManager->getRepository(UserImg::class)->findBy(["user" => $user, "id" => $imageId]);
+
+        if (empty($userImgs)) return ["errorType" => "imageNotFound"];
+
+        $userImg = $userImgs[0];
+        $key = $userImg->getImg();
+
+        $result = $this->deleteFromS3($key);
+
+        if (!$result['success']) {
+            return [
+                "success" => false,
+                "id"      => $imageId,
+                "message" => $result['message'],
+            ];
+        }
+
+        $this->uploadEntityManager->remove($userImg);
+        $this->uploadEntityManager->flush();
+
+        return ["success" => true, "id" => $imageId, "message" => "Image deleted successfully"];
+    }
+
+    /**
+     * Delete a file from S3 bucket
+     * 
+     * @param string $key The S3 key/path of the file to delete
+     * @return array Returns success status and message
+     */
+    public function deleteFromS3(string $key): array
+    {
+        if (empty($key)) {
+            return [
+                'success' => false,
+                'message' => 'Invalid S3 key provided'
+            ];
+        }
+
+        $this->ensureS3Client();
+        if (!$this->s3Enabled) {
+            return [
+                'success' => false,
+                'message' => 'S3 service disabled (missing or invalid configuration)',
+                'key'     => $key,
+            ];
+        }
+
+        try {
+            $this->s3Client->deleteObject([
+                'Bucket' => $this->s3Bucket,
+                'Key'    => $key,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'File deleted successfully from S3',
+                'key'     => $key
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'message' => 'S3 deletion failed: ' . $e->getMessage(),
+                'key'     => $key
+            ];
+        }
+    }
+
+    /**
+     * Upload un fichier unique sur S3
+     * 
+     * @param string $localPath Chemin local du fichier
+     * @param string $s3Key Clé S3 (chemin dans le bucket)
+     * @param string $contentType Type MIME du fichier
+     * @return bool Retourne true si succès, false sinon
+     */
+    public function uploadFileToS3(string $localPath, string $s3Key, string $contentType): bool
+    {
+        $this->ensureS3Client();
+        if (!$this->s3Enabled) {
+            return false;
+        }
+
+        try {
+            $this->s3Client->putObject([
+                'Bucket' => $this->s3Bucket,
+                'Key' => $s3Key,
+                'SourceFile' => $localPath,
+                'ACL' => 'public-read',
+                'ContentType' => $contentType,
+            ]);
+            return true;
+        } catch (\Throwable $e) {
+            error_log("Erreur S3 upload ({$s3Key}): " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Upload des 3 versions d'une image (principale, thumbnail, medium) sur S3
+     * 
+     * @param string $mainPath Chemin local de l'image principale
+     * @param string $thumbPath Chemin local de la miniature
+     * @param string $mediumPath Chemin local de l'image medium
+     * @param string $fileName Nom de fichier principal
+     * @param string $thumbName Nom de fichier miniature
+     * @param string $mediumName Nom de fichier medium
+     * @param string $subDir Sous-répertoire S3
+     * @return bool Retourne true si tous les uploads réussissent
+     */
+    public function uploadImageVariantsToS3(
+        string $mainPath,
+        string $thumbPath,
+        string $mediumPath,
+        string $fileName,
+        string $thumbName,
+        string $mediumName,
+        string $subDir = 'user_data/exp_img'
+    ): bool {
+        $success = true;
+        
+        $success = $this->uploadFileToS3($mainPath, "{$subDir}/{$fileName}", 'image/jpeg') && $success;
+        $success = $this->uploadFileToS3($thumbPath, "{$subDir}/{$thumbName}", 'image/jpeg') && $success;
+        $success = $this->uploadFileToS3($mediumPath, "{$subDir}/{$mediumName}", 'image/jpeg') && $success;
+        
+        return $success;
+    }
+
+    /**
+     * Upload d'une vidéo sur S3
+     * 
+     * @param string $localPath Chemin local de la vidéo
+     * @param string $fileName Nom du fichier vidéo
+     * @param string $contentType Type MIME de la vidéo
+     * @param string $subDir Sous-répertoire S3
+     * @return bool Retourne true si l'upload réussit
+     */
+    public function uploadVideoToS3(
+        string $localPath,
+        string $fileName,
+        string $contentType = 'video/mp4',
+        string $subDir = 'user_data/exp_video'
+    ): bool {
+        return $this->uploadFileToS3($localPath, "{$subDir}/{$fileName}", $contentType);
+    }
+
+    public function handleUploadToS3(array $options): array
+    {
+        $defaults = [
+            'fieldName' => 'file',
+            'allowedExtensions' => [],
+            'maxSize' => 0,
+            'subDir' => 'user_resources',
+            'customBaseName' => null,
+            'defaultContentType' => 'application/octet-stream',
+            'requireAuth' => true,
+        ];
+        $options = array_merge($defaults, $options);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return ['errors' => [['errorType' => 'methodNotAllowed']]];
+        }
+
+        if ($options['requireAuth'] && empty($_SESSION['id'])) {
+            return ['errors' => [['errorType' => 'notAuthenticated']]];
+        }
+
+        $this->ensureS3Client();
+        if (!$this->s3Enabled) {
+            return ['errors' => [['errorType' => 's3Disabled']]];
+        }
+
+        $fieldName = $options['fieldName'];
+
+        if (empty($_FILES[$fieldName])) {
+            return ['errors' => [['errorType' => 'fileMissing']]];
+        }
+
+        $incomingData = $_FILES[$fieldName];
+
+        $fileError = intval($incomingData['error']);
+        $rawName = $options['customBaseName'] ?? ($incomingData['name'] ?? '');
+        $fileName = htmlspecialchars(strip_tags(trim($rawName)));
+        $tmpName = $incomingData['tmp_name'] ?? '';
+        $fileSize = isset($incomingData['size']) ? intval($incomingData['size']) : 0;
+        $mimeType = $incomingData['type'] ?? $options['defaultContentType'];
+
+        $extension = '';
+        if (!empty($mimeType) && strpos($mimeType, '/') !== false) {
+            $extension = explode('/', $mimeType)[1] ?? '';
+        }
+        if (empty($extension) && !empty($incomingData['name'])) {
+            $parts = explode('.', $incomingData['name']);
+            $extension = strtolower(end($parts));
+        }
+        $extension = htmlspecialchars(strip_tags(trim($extension)));
+
+        $errors = [];
+
+        if ($fileError !== 0) {
+            $errors[] = ['errorType' => 'fileUploadError'];
+        }
+        if (empty($fileName)) {
+            $errors[] = ['errorType' => 'invalidFileName'];
+        }
+        if (empty($tmpName)) {
+            $errors[] = ['errorType' => 'invalidFileTempName'];
+        }
+        if (empty($extension)) {
+            $errors[] = ['errorType' => 'invalidFileExtension'];
+        } elseif (!empty($options['allowedExtensions']) && !in_array(strtolower($extension), $options['allowedExtensions'], true)) {
+            $errors[] = ['errorType' => 'invalidFileExtension'];
+        }
+
+        if (empty($fileSize)) {
+            $errors[] = ['errorType' => 'invalidFileSize'];
+        } elseif (!empty($options['maxSize']) && $fileSize > $options['maxSize']) {
+            $errors[] = ['errorType' => 'fileSizeTooLarge'];
+        }
+
+        if (!empty($errors)) {
+            return ['errors' => $errors];
+        }
+
+        $base = explode('.', str_replace(["'", '"', ' '], '_', $fileName))[0];
+        $base = htmlspecialchars(strip_tags(trim($base)));
+
+        $filenameToUpload = time() . '_' . $base . '.' . $extension;
+        $key = rtrim($options['subDir'], '/') . '/' . $filenameToUpload;
+
+        try {
+            $this->s3Client->putObject([
+                'Bucket' => $this->s3Bucket,
+                'Key' => $key,
+                'SourceFile' => $incomingData['tmp_name'],
+                'ACL' => 'public-read',
+                'ContentType' => $mimeType ?: $options['defaultContentType'],
+            ]);
+        } catch (\Throwable $e) {
+            return [
+                'errors' => [
+                    [
+                        'errorType' => 'fileNotStored',
+                        'message'   => $e->getMessage(),
+                    ]
+                ]
+            ];
+        }
+
+        return [
+            'filename' => $filenameToUpload,
+            'key' => $key,
+            'src' => $this->buildPublicUrl($key),
+            'mimeType' => $mimeType,
+            'extension' => $extension,
+            'size' => $fileSize,
+            'fieldName' => $fieldName,
+        ];
+    }
+}

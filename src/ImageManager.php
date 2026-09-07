@@ -4,7 +4,6 @@ namespace Utils;
 
 class ImageManager
 {
-
     private static $sharedInstance;
     private function __construct()
     { }
@@ -147,6 +146,7 @@ class ImageManager
         /* copy source image at a resized size */
         if (!imagecopyresampled($virtual_image, $source_image, 0, 0, 0, 0, $desired_width, $desired_height, $width, $height))
             return false;
+
         /* create the physical thumbnail image to its destination */
         return imagejpeg($virtual_image, $destination, 90);
     }
