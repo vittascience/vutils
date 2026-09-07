@@ -52,8 +52,7 @@ class ImageManager
             return false;
 
         //exif only supports jpg in our supported file types
-        // function_exists() guard: @ only suppresses warnings, not the fatal
-        // "call to undefined function" PHP throws when ext-exif isn't loaded.
+        // function_exists() guard: @ doesn't suppress the fatal if ext-exif isn't loaded.
         if (($extension == "jpg" || $extension == "jpeg") && function_exists('exif_read_data')) {
             //fix photos taken on cameras that have incorrect
             //dimensions

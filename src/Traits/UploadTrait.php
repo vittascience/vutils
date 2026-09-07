@@ -8,11 +8,7 @@ use Aws\S3\S3Client;
 
 trait UploadTrait
 {
-    // Prefixed (not $entityManager/$user) because several host classes are
-    // entities or controllers that already declare their own same-named
-    // property with a different visibility (e.g. Learn\Entity\Course::$user
-    // is private) — PHP treats that as a fatal "incompatible property"
-    // trait-composition error, not a harmless override.
+    // Prefixed to avoid clashing with a host class's own $user/$entityManager (fatal trait-composition error otherwise).
     protected $uploadEntityManager;
     protected $uploadUser;
     protected $s3Client;
@@ -30,18 +26,7 @@ trait UploadTrait
         $this->ensureS3Client();
     }
 
-    /**
-     * Lazily sets up the S3 client, independently of __construct().
-     *
-     * Several consumers never actually run UploadTrait::__construct(): a
-     * class with its own same-signature constructor silently shadows it
-     * (PHP always prefers the class's own method over a trait's), and a
-     * Doctrine entity is hydrated from the database by reflection, bypassing
-     * its PHP constructor entirely. Every S3-facing method below calls this
-     * first instead of assuming the constructor ran, so the client gets
-     * built on first real use no matter which class mixes the trait in.
-     * Idempotent and safe to call from anywhere, any number of times.
-     */
+    // Lazy init: many host classes never actually run our __construct() (own constructor shadows it, or a Doctrine entity bypasses it), so every S3 method calls this instead of assuming it ran.
     private function ensureS3Client(): void
     {
         if ($this->s3Initialized) {
@@ -82,14 +67,7 @@ trait UploadTrait
         }
     }
 
-    /**
-     * Several lightweight AJAX endpoints (postProfile.php, bdcProcess.php,
-     * kitMedia.php...) only require vendor/autoload.php, never the app's
-     * bootstrap.php — so $_ENV can still be empty here even in production
-     * with a correctly filled .env. bootstrap.php itself is too heavy to
-     * pull in just for this (it opens a Doctrine/DB connection on load), so
-     * this replicates only its two-line env-loading step as a fallback.
-     */
+    // Fallback: some endpoints never require the app's bootstrap.php, so $_ENV can still be empty here.
     private function loadEnvIfNeeded(): void
     {
         if (!empty($_ENV['VS_S3_KEY'])) {
