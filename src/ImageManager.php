@@ -52,11 +52,13 @@ class ImageManager
             return false;
 
         //exif only supports jpg in our supported file types
-        if ($extension == "jpg" || $extension == "jpeg") {
+        // function_exists() guard: @ only suppresses warnings, not the fatal
+        // "call to undefined function" PHP throws when ext-exif isn't loaded.
+        if (($extension == "jpg" || $extension == "jpeg") && function_exists('exif_read_data')) {
             //fix photos taken on cameras that have incorrect
             //dimensions
-            if (@exif_read_data($source)) {
-                $exif = @exif_read_data($source);
+            $exif = @exif_read_data($source);
+            if ($exif) {
                 //get the orientation after checking if field exists in EXIF data.
                 if (array_key_exists("Orientation", $exif)) {
                     $ort = $exif['Orientation'];
