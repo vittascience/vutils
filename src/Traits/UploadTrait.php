@@ -8,9 +8,13 @@ use Aws\S3\S3Client;
 
 trait UploadTrait
 {
-    protected $actions = [];
-    protected $entityManager;
-    protected $user;
+    // Prefixed (not $entityManager/$user) because several host classes are
+    // entities or controllers that already declare their own same-named
+    // property with a different visibility (e.g. Learn\Entity\Course::$user
+    // is private) — PHP treats that as a fatal "incompatible property"
+    // trait-composition error, not a harmless override.
+    protected $uploadEntityManager;
+    protected $uploadUser;
     protected $s3Client;
     protected $s3Bucket;
     protected $s3PublicBaseUrl;
@@ -21,8 +25,8 @@ trait UploadTrait
 
     public function __construct($entityManager, $user)
     {
-        $this->entityManager = $entityManager;
-        $this->user = $user;
+        $this->uploadEntityManager = $entityManager;
+        $this->uploadUser = $user;
         $this->ensureS3Client();
     }
 
@@ -102,14 +106,14 @@ trait UploadTrait
             return $result;
         }
 
-        $user = $this->entityManager->getRepository(User::class)->find($this->user["id"]);
+        $user = $this->uploadEntityManager->getRepository(User::class)->find($this->uploadUser["id"]);
         $userImg = new UserImg();
         $userImg->setUser($user);
         $userImg->setImg($result['key']);
         $userImg->setIsPublic(0);
 
-        $this->entityManager->persist($userImg);
-        $this->entityManager->flush();
+        $this->uploadEntityManager->persist($userImg);
+        $this->uploadEntityManager->flush();
 
         return [
             'filename' => $result['filename'],
@@ -122,8 +126,8 @@ trait UploadTrait
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') return ["error" => "Method not Allowed"];
         if (empty($_SESSION['id'])) return ["errorType" => "uploadFileFromTextEditorNotAuthenticated"];
 
-        $user = $this->entityManager->getRepository(User::class)->find($this->user["id"]);
-        $userImgs = $this->entityManager->getRepository(UserImg::class)->findBy(["user" => $user]);
+        $user = $this->uploadEntityManager->getRepository(User::class)->find($this->uploadUser["id"]);
+        $userImgs = $this->uploadEntityManager->getRepository(UserImg::class)->findBy(["user" => $user]);
         $userFiles = [];
 
         foreach ($userImgs as $userImg) {
@@ -147,8 +151,8 @@ trait UploadTrait
         $imageId = !empty($_POST['id']) ? intval($_POST['id']) : 0;
         if (empty($imageId)) return ["errorType" => "invalidImageId"];
 
-        $user = $this->entityManager->getRepository(User::class)->find($this->user["id"]);
-        $userImgs = $this->entityManager->getRepository(UserImg::class)->findBy(["user" => $user, "id" => $imageId]);
+        $user = $this->uploadEntityManager->getRepository(User::class)->find($this->uploadUser["id"]);
+        $userImgs = $this->uploadEntityManager->getRepository(UserImg::class)->findBy(["user" => $user, "id" => $imageId]);
 
         if (empty($userImgs)) return ["errorType" => "imageNotFound"];
 
@@ -165,8 +169,8 @@ trait UploadTrait
             ];
         }
 
-        $this->entityManager->remove($userImg);
-        $this->entityManager->flush();
+        $this->uploadEntityManager->remove($userImg);
+        $this->uploadEntityManager->flush();
 
         return ["success" => true, "id" => $imageId, "message" => "Image deleted successfully"];
     }
