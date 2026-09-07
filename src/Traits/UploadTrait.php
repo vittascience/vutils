@@ -17,11 +17,33 @@ trait UploadTrait
     // S3 is in test phase: any missing config or SDK failure disables it, it
     // never takes down the (still-authoritative) local upload path.
     protected $s3Enabled = false;
+    private $s3Initialized = false;
 
     public function __construct($entityManager, $user)
     {
         $this->entityManager = $entityManager;
         $this->user = $user;
+        $this->ensureS3Client();
+    }
+
+    /**
+     * Lazily sets up the S3 client, independently of __construct().
+     *
+     * Several consumers never actually run UploadTrait::__construct(): a
+     * class with its own same-signature constructor silently shadows it
+     * (PHP always prefers the class's own method over a trait's), and a
+     * Doctrine entity is hydrated from the database by reflection, bypassing
+     * its PHP constructor entirely. Every S3-facing method below calls this
+     * first instead of assuming the constructor ran, so the client gets
+     * built on first real use no matter which class mixes the trait in.
+     * Idempotent and safe to call from anywhere, any number of times.
+     */
+    private function ensureS3Client(): void
+    {
+        if ($this->s3Initialized) {
+            return;
+        }
+        $this->s3Initialized = true;
 
         $this->s3PublicBaseUrl = !empty($_ENV['VS_S3_USER_PUBLIC_BASE_URL'])
             ? rtrim($_ENV['VS_S3_USER_PUBLIC_BASE_URL'], '/')
@@ -164,6 +186,7 @@ trait UploadTrait
             ];
         }
 
+        $this->ensureS3Client();
         if (!$this->s3Enabled) {
             return [
                 'success' => false,
@@ -202,6 +225,7 @@ trait UploadTrait
      */
     public function uploadFileToS3(string $localPath, string $s3Key, string $contentType): bool
     {
+        $this->ensureS3Client();
         if (!$this->s3Enabled) {
             return false;
         }
@@ -290,6 +314,7 @@ trait UploadTrait
             return ['errors' => [['errorType' => 'notAuthenticated']]];
         }
 
+        $this->ensureS3Client();
         if (!$this->s3Enabled) {
             return ['errors' => [['errorType' => 's3Disabled']]];
         }
