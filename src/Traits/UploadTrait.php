@@ -83,6 +83,12 @@ trait UploadTrait
         }
     }
 
+    public function isS3OnlyMode(): bool
+    {
+        $this->loadEnvIfNeeded();
+        return ($_ENV['VS_STORAGE_MODE'] ?? 'volume') === 's3';
+    }
+
     protected function buildPublicUrl(string $key): string | false
     {
         if (!empty($this->s3PublicBaseUrl)) {
@@ -220,6 +226,52 @@ trait UploadTrait
                 'key'     => $key
             ];
         }
+    }
+
+    public function getS3ObjectBody(string $key): ?string
+    {
+        $this->ensureS3Client();
+        if (!$this->s3Enabled) {
+            return null;
+        }
+
+        try {
+            $result = $this->s3Client->getObject([
+                'Bucket' => $this->s3Bucket,
+                'Key' => $key,
+            ]);
+            return (string) $result['Body'];
+        } catch (\Throwable $e) {
+            error_log("UploadTrait: échec GetObject ({$key}): " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function listS3KeysByPrefix(string $prefix): array
+    {
+        $this->ensureS3Client();
+        if (!$this->s3Enabled) {
+            return [];
+        }
+
+        $keys = [];
+        try {
+            $continuationToken = null;
+            do {
+                $params = ['Bucket' => $this->s3Bucket, 'Prefix' => $prefix];
+                if ($continuationToken) {
+                    $params['ContinuationToken'] = $continuationToken;
+                }
+                $result = $this->s3Client->listObjectsV2($params);
+                foreach (($result['Contents'] ?? []) as $obj) {
+                    $keys[] = $obj['Key'];
+                }
+                $continuationToken = !empty($result['IsTruncated']) ? ($result['NextContinuationToken'] ?? null) : null;
+            } while ($continuationToken);
+        } catch (\Throwable $e) {
+            error_log("UploadTrait: échec ListObjectsV2 (prefix {$prefix}): " . $e->getMessage());
+        }
+        return $keys;
     }
 
     /**
