@@ -1624,14 +1624,6 @@ class ControllerUserAssets
                         ];
                     }
 
-                    $userLikeImage = $this->entityManager->getRepository(UserLikeImage::class)->findBy(['generativeAssets' => $generativeAsset]);
-                    if ($userLikeImage) {
-                        return [
-                            "success" => false,
-                            "message" => "image_already_liked",
-                        ];
-                    }
-
                     $generativeAsset->setAdminReview(true);
                     $generativeAsset->setIsPublic(false);
                     $generativeAsset->setLikes(0);
