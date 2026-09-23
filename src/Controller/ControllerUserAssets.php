@@ -157,9 +157,16 @@ class ControllerUserAssets
                             "message" => "File type not supported.",
                         ];
                     }
+                    $decoded = $this->decodeDataUri($content);
+                    if ($decoded === null) {
+                        return [
+                            "success" => false,
+                            "message" => "Invalid content.",
+                        ];
+                    }
                     $options = [
                         'name'    => $name,
-                        'content' => file_get_contents($content),
+                        'content' => $decoded,
                     ];
 
                     $this->openstack->objectStoreV1()->getContainer($this->target)->createObject($options);
@@ -212,10 +219,16 @@ class ControllerUserAssets
                     if ($authorization) {
                         $objExist = $this->openstack->objectStoreV1()->getContainer($this->target)->objectExists($name);
                         if ($objExist) {
-                            $data = file_get_contents('php://input');
+                            $decoded = $this->decodeDataUri(file_get_contents('php://input'));
+                            if ($decoded === null) {
+                                return [
+                                    "success" => false,
+                                    "message" => "Invalid content.",
+                                ];
+                            }
                             $options = [
                                 'name'    => $name,
-                                'content' => file_get_contents($data),
+                                'content' => $decoded,
                             ];
 
                             $dataType = $this->dataTypeFromExtension($_GET["name"]);
@@ -2364,6 +2377,20 @@ class ControllerUserAssets
                 "error" => $e->getMessage(),
             ];
         }
+    }
+
+    // Body must be a data: URI; never hand it to file_get_contents, which would open any path/URL/wrapper.
+    private function decodeDataUri(string $uri): ?string
+    {
+        if (!preg_match('#^data:[^,]*?(;base64)?,#', $uri, $matches)) {
+            return null;
+        }
+        $payload = substr($uri, strlen($matches[0]));
+        if (empty($matches[1])) {
+            return rawurldecode($payload);
+        }
+        $decoded = base64_decode($payload, true);
+        return $decoded === false ? null : $decoded;
     }
 
     private function dataTypeFromExtension(String $fileName): ?String
