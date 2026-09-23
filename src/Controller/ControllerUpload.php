@@ -5,9 +5,13 @@ namespace Utils\Controller;
 use Dotenv\Dotenv;
 use User\Entity\User;
 use Utils\Entity\UserImg;
+use Utils\Traits\UploadTrait;
+use Utils\UserDataUrl;
 
 class ControllerUpload
 {
+    use UploadTrait;
+
     protected $actions = [];
     protected $entityManager;
     protected $user;
@@ -58,7 +62,7 @@ class ControllerUpload
         if (empty($imageName)) array_push($errors, array("errorType" => "invalidImageName"));
         if (empty($imageTempName)) array_push($errors, array("errorType" => "invalidImageTempName"));
         if (empty($extension)) array_push($errors, array("errorType" => "invalidImageExtension"));
-        if (!in_array($extension, array("jpg", "jpeg", "png", "svg", "webp", "gif", "apng"))) {
+        if (!in_array($extension, array("jpg", "jpeg", "png", "webp", "gif", "apng"))) {
             array_push($errors, array("errorType" => "invalidImageExtension"));
         }
         if (empty($imageSize)) array_push($errors, array("errorType" => "invalidImageSize"));
@@ -75,13 +79,18 @@ class ControllerUpload
 
         $filenameToUpload = time() . "_$filenameHtmlSpecial.$extension";
 
-         // no errors, we can process the data
-         $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR'])
-            ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR']
-            : 'public/content/user_data/resources';
-        $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
+        if ($this->isS3OnlyMode()) {
+            $success = $this->storeResourceOnS3($imageTempName, $filenameToUpload, $extension);
+            $src = UserDataUrl::resolve("resources/$filenameToUpload");
+        } else {
+            $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR'])
+                ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR']
+                : 'public/content/user_data/resources';
+            $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
 
-        $success = move_uploaded_file($imageTempName, "$uploadDir/$filenameToUpload");
+            $success = move_uploaded_file($imageTempName, "$uploadDir/$filenameToUpload");
+            $src = "/$resourceUploadDir/$filenameToUpload";
+        }
 
         // something went wrong while storing the image, return an error
         if (!$success) {
@@ -100,7 +109,7 @@ class ControllerUpload
         // no errors, return data
         return array(
             "filename" => $filenameToUpload,
-            "src" => "/$resourceUploadDir/$filenameToUpload"
+            "src" => $src
         );
     }
 
@@ -114,11 +123,14 @@ class ControllerUpload
         $user = $this->entityManager->getRepository(User::class)->find($this->user["id"]);
         $userImgs = $this->entityManager->getRepository(UserImg::class)->findBy(["user" => $user]);
         $userFiles = [];
+        $s3Only = $this->isS3OnlyMode();
         foreach ($userImgs as $userImg) {
             array_push($userFiles, [
                 "id" => $userImg->getId(),
                 "filename" => $userImg->getImg(),
-                "src" => "/public/content/user_data/resources/" . $userImg->getImg(),
+                "src" => $s3Only
+                    ? UserDataUrl::resolve("resources/" . $userImg->getImg())
+                    : "/public/content/user_data/resources/" . $userImg->getImg(),
                 "isPublic" => $userImg->getIsPublic()
             ]);
         }
@@ -141,13 +153,22 @@ class ControllerUpload
 
         $userImg = $userImgs[0];
         $filename = $userImg->getImg();
-        $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR']) 
-                            ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR'] 
-                            : 'public/content/user_data/resources';
 
-        $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
+        if ($this->isS3OnlyMode()) {
+            $deleted = $this->deleteFromS3("user_data/resources/$filename");
+            if (!$deleted['success']) {
+                error_log("ControllerUpload: S3 deletion failed for $filename: " . $deleted['message']);
+                return ["success" => false, "id" => $imageId, "message" => "imageNotDeleted"];
+            }
+        } else {
+            $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR']) 
+                                ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR'] 
+                                : 'public/content/user_data/resources';
 
-        unlink("$uploadDir/$filename");
+            $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
+
+            unlink("$uploadDir/$filename");
+        }
         $this->entityManager->remove($userImg);
         $this->entityManager->flush();
 
@@ -194,12 +215,18 @@ class ControllerUpload
         $filenameWithoutSpaces = explode('.', str_replace(' ', '_', $fileName))[0];
         $filenameToUpload = time() . "_$filenameWithoutSpaces.$extension";
 
-        // set the target dir and move file
-        $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR'])
-                                ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR']
-                                : 'public/content/user_data/resources';
-        $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
-        $success = move_uploaded_file($fileTempName, "$uploadDir/$filenameToUpload");
+        if ($this->isS3OnlyMode()) {
+            $success = $this->storeResourceOnS3($fileTempName, $filenameToUpload, $extension);
+            $src = UserDataUrl::resolve("resources/$filenameToUpload");
+        } else {
+            // set the target dir and move file
+            $resourceUploadDir = !empty($this->envVariables['VS_RESOURCE_UPLOAD_DIR'])
+                                    ? $this->envVariables['VS_RESOURCE_UPLOAD_DIR']
+                                    : 'public/content/user_data/resources';
+            $uploadDir = __DIR__ . "/../../../../../$resourceUploadDir";
+            $success = move_uploaded_file($fileTempName, "$uploadDir/$filenameToUpload");
+            $src = "/$resourceUploadDir/$filenameToUpload";
+        }
 
         // something went wrong while storing the file, return an error
         if (!$success) {
@@ -210,7 +237,30 @@ class ControllerUpload
         // no errors, return data
         return array(
             "filename" => $filenameToUpload,
-            "src" => "/$resourceUploadDir/$filenameToUpload"
+            "src" => $src
         );
+    }
+
+    // VS_STORAGE_MODE=s3: prod/preprod have no user_data volume, resources live under user_data/resources/ in the bucket.
+    private function storeResourceOnS3(string $tmpName, string $filename, string $extension): bool
+    {
+        if (!is_uploaded_file($tmpName)) {
+            return false;
+        }
+        return $this->uploadFileToS3($tmpName, "user_data/resources/$filename", $this->contentTypeForExtension($extension));
+    }
+
+    private function contentTypeForExtension(string $extension): string
+    {
+        $mimeTypes = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'apng' => 'image/apng',
+            'pdf' => 'application/pdf',
+        ];
+        return $mimeTypes[$extension] ?? 'application/octet-stream';
     }
 }

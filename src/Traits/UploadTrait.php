@@ -103,7 +103,7 @@ trait UploadTrait
 
         $result = $this->handleUploadToS3([
             'fieldName' => 'image',
-            'allowedExtensions' => ['jpg', 'jpeg', 'png', 'svg', 'webp', 'gif', 'apng'],
+            'allowedExtensions' => ['jpg', 'jpeg', 'png', 'webp', 'gif', 'apng'],
             'maxSize' => 3_000_000,
             'subDir' => 'user_data/resources',
             'customBaseName' => $title,
