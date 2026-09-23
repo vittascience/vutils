@@ -380,9 +380,22 @@ class ControllerUserAssets
             },
             "ai-upload-imgs" => function () {
                 if ($_SERVER['REQUEST_METHOD'] == "POST") {
+                    if (empty($_SESSION['id'])) {
+                        return [
+                            "success" => false,
+                            "error" => "User not connected",
+                        ];
+                    }
                     $request = !empty($_POST['data']) ? $_POST['data'] : null;
+                    // images is omitted by jQuery when the project has none left
+                    $images = $request['images'] ?? [];
+                    if (!is_array($request) || !is_array($images)) {
+                        return [
+                            "success" => false,
+                            "error" => "Invalid data",
+                        ];
+                    }
                     $key = array_key_exists('key', $request) ? $request['key'] : null;
-                    $images = $request['images'];
 
                     if (!$key) {
                         $key = md5(uniqid(rand(), true));
