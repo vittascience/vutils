@@ -45,6 +45,7 @@ class ControllerUserAssets
         "increment_like_generative_assets",
         "decrement_like_generative_assets",
         "is_image_liked_by_user",
+        "get_list_of_my_favorite_generative_assets_per_page",
         "get_generative_assets_length",
         "get_public_generative_assets_by_id",
         "get_public_generative_assets_by_ids",
