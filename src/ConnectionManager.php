@@ -123,6 +123,8 @@ class ConnectionManager
                     }
                     $otp = new Otp();
                     if (!$otp->checkTotp(Encoding::base32DecodeUpper($user["totp_secret"]), $totp_code)) {
+                        // counted like a wrong password, otherwise the 2FA code can be brute-forced once the password is known
+                        $this->saveFailedLoginAttempt($regular['email']);
                         $this->errorResponse['error'] = "wrong_totp_code";
                         return $this->errorResponse;
                     }
