@@ -30,7 +30,45 @@ class ControllerUserAssets
     protected $actions;
     protected $entityManager;
     protected $user;
-    protected $whiteList;
+    // Actions reachable without a session (anonymous IA pages, llm-interfacer server-to-server calls); any other action requires one.
+    protected const PUBLIC_ACTIONS = [
+        "adacraft",
+        "ai-get",
+        "ai-get-imgs",
+        "ai-get-sounds",
+        "generative_assets",
+        "update_creation_steps",
+        "get_one_creator_generative_assets",
+        "get_public_generative_assets_per_page",
+        "get_best_assets_of_this_week",
+        "get_assets_of_game",
+        "increment_like_generative_assets",
+        "decrement_like_generative_assets",
+        "is_image_liked_by_user",
+        "get_generative_assets_length",
+        "get_public_generative_assets_by_id",
+        "get_public_generative_assets_by_ids",
+        "check_duplicate_generative_assets",
+        "get_concours_generative_assets_per_page",
+        "get_competition_assets_by_key",
+        "get_all_competition",
+        "get_all_games",
+        "get_current_game",
+        "get-audio-tts",
+        "put-audio-tts",
+        "update-audio-tts",
+        "delete-audio-tts",
+    ];
+    protected const ADMIN_ACTIONS = [
+        "get_list_of_non_reviewed_generative_assets",
+        "get_total_page_of_non_reviewed_generative_assets",
+        "get_list_of_all_generative_assets",
+        "get_reviewed_generative_assets_length",
+        "get_total_count_of_anormal_assets",
+        "get_list_of_anormal_assets",
+        "update_validation_for_generative_asset",
+        "admin-delete-from-scaleway",
+    ];
     protected $clientS3;
     protected $bucket;
     protected $bucketGenerativeAssets;
@@ -51,7 +89,6 @@ class ControllerUserAssets
         $this->user = $user;
         $this->bucketGenerativeAssetsEndpoint = "https://vittai-generative-assets.s3.fr-par.scw.cloud/";
         $this->bucketGenerativeAssets = "vittai-generative-assets";
-        $this->whiteList = ["adacraft", "ai-get", "ai-get-imgs", "ai-get-sounds", "get_one_generative_assets", "get_list_default_generative_assets", "get_my_generative_assets", "get_one_default_generative_assets", "get_public_generative_assets_per_page"];
         $this->clientS3 = new S3Client([
             'credentials' => [
                 'key' => $_ENV['VS_S3_KEY'],
@@ -1996,7 +2033,36 @@ class ControllerUserAssets
             },
         );
 
+        if (!isset($this->actions[$action])) {
+            return ["success" => false, "message" => "unknown_action"];
+        }
+
+        $accessError = $this->checkActionAccess($action);
+        if ($accessError !== null) {
+            return $accessError;
+        }
+
         return call_user_func($this->actions[$action], $data);
+    }
+
+    private function checkActionAccess(string $action): ?array
+    {
+        if (in_array($action, self::PUBLIC_ACTIONS, true)) {
+            return null;
+        }
+
+        if (empty($_SESSION['id'])) {
+            return ["success" => false, "message" => "not_connected"];
+        }
+
+        if (in_array($action, self::ADMIN_ACTIONS, true)) {
+            $regular = $this->entityManager->getRepository(Regular::class)->findOneBy(['user' => $_SESSION['id']]);
+            if (!$regular || !$regular->getIsAdmin()) {
+                return ["success" => false, "message" => "not_allowed"];
+            }
+        }
+
+        return null;
     }
 
 
