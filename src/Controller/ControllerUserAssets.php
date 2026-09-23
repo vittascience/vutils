@@ -529,6 +529,13 @@ class ControllerUserAssets
                         ];
                     }
 
+                    if (!$this->isValidAssetKey($key)) {
+                        return [
+                            "success" => false,
+                            "message" => "invalid_key",
+                        ];
+                    }
+
                     $imagesToGet = [];
                     // get all linked image with the user who start by the key
                     $existingImagesFromS3 = $this->listObjectsFromBucket($this->bucket, $key);
@@ -643,6 +650,13 @@ class ControllerUserAssets
                         return [
                             "success" => false,
                             "message" => "No key provided",
+                        ];
+                    }
+
+                    if (!$this->isValidAssetKey($key)) {
+                        return [
+                            "success" => false,
+                            "message" => "invalid_key",
                         ];
                     }
 
@@ -2443,6 +2457,12 @@ class ControllerUserAssets
                 "error" => $e->getMessage(),
             ];
         }
+    }
+
+    // Keys are server-generated md5s; a shorter prefix would list every project's files in the bucket.
+    private function isValidAssetKey($key): bool
+    {
+        return is_string($key) && preg_match('/^[a-f0-9]{32}$/D', $key) === 1;
     }
 
     // Body must be a data: URI; never hand it to file_get_contents, which would open any path/URL/wrapper.
