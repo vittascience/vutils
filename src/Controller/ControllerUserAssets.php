@@ -756,6 +756,8 @@ class ControllerUserAssets
                     $creationSteps = array_key_exists('creationSteps', $_POST) ? $_POST['creationSteps'] : null;
                     $isCompetition = array_key_exists('isCompetition', $_POST) ? $_POST['isCompetition'] : null;
                     $isCompetition = $isCompetition == 'false' ? 0 : 1;
+                    // Classroom (IAG) creations are always private
+                    $isPrivate = ($_POST['isPrivate'] ?? '') === 'true';
                     $score = array_key_exists('score', $_POST) ? $_POST['score'] : null;
                     $totalMs = array_key_exists('totalMs', $_POST) ? htmlspecialchars($_POST['totalMs']) : null;
                     $inferenceMs = array_key_exists('inferenceMs', $_POST) ? htmlspecialchars($_POST['inferenceMs']) : null;
@@ -802,7 +804,7 @@ class ControllerUserAssets
                             $restrictions = UtilsTrait::getUserRestrictions($this->entityManager, $userCheck->getId());
                             $isPremiumUser = !empty($restrictions['premium']) && $restrictions['premium'] === true;
                         }
-                        $isPublic = !$isPremiumUser;
+                        $isPublic = !$isPremiumUser && !$isPrivate;
 
                         $generativeAsset = new GenerativeAssets();
                         $generativeAsset->setName($name);
