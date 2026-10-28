@@ -1083,6 +1083,9 @@ class ControllerUserAssets
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                     $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                    if (!$generativeAsset) {
+                        return ["success" => false, "message" => "asset_not_found"];
+                    }
 
                     if (!empty($_SESSION['id'])) {
                         // check if the image is already liked by the user
@@ -1123,6 +1126,9 @@ class ControllerUserAssets
                 try {
                     $id = array_key_exists('id', $_POST) ? htmlspecialchars($_POST['id']) : null;
                     $generativeAsset = $this->entityManager->getRepository(GenerativeAssets::class)->findOneBy(['id' => $id]);
+                    if (!$generativeAsset) {
+                        return ["success" => false, "message" => "asset_not_found"];
+                    }
 
                     $likes = $generativeAsset->getLikes();
                     if ($likes == 0) {
