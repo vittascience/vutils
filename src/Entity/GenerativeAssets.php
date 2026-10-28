@@ -41,7 +41,7 @@ class GenerativeAssets implements \JsonSerializable
     private $createdAt;
 
     /**
-     * @ORM\Column(name="prompt", type="string", length=255, nullable=false)
+     * @ORM\Column(name="prompt", type="text", nullable=false)
      * @var string
      */
     private $prompt;
@@ -53,7 +53,7 @@ class GenerativeAssets implements \JsonSerializable
     private $ipAddress;
 
     /**
-     * @ORM\Column(name="negative_prompt", type="string", length=255, nullable=false)
+     * @ORM\Column(name="negative_prompt", type="text", nullable=false)
      * @var string
      */
     private $negativePrompt;
