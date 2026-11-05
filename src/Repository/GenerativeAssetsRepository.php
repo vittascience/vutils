@@ -265,7 +265,7 @@ class GenerativeAssetsRepository extends EntityRepository
         $stmt = $conn->executeQuery(
             $sql,
             ['limit' => $limit, 'offset' => $offset],
-            ['limit' => \PDO::PARAM_INT, 'offset' => \PDO::PARAM_INT]
+            ['limit' => \Doctrine\DBAL\ParameterType::INTEGER, 'offset' => \Doctrine\DBAL\ParameterType::INTEGER]
         );
     
         return $stmt->fetchAllAssociative();
