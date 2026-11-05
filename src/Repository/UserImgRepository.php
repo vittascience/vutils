@@ -12,7 +12,7 @@ class UserImgRepository extends EntityRepository
         return $this->getEntityManager()->createQueryBuilder()->select('ui')
             ->from("Utils\Entity\UserImg", 'ui')
             ->where('ui.user = :user')
-            ->setParameters(['user' => $user])
+            ->setParameter('user', $user)
             ->getQuery()
             ->getResult();
     }
