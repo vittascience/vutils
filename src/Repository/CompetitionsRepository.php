@@ -16,7 +16,7 @@ class CompetitionsRepository extends EntityRepository
             ->from(Competitions::class, 'c')
             ->where('c.start_competition < :dateNow') // Utilisation d'un paramètre nommé
             ->setParameter('dateNow', $dateNow) // Liaison du paramètre nommé à $dateNow
-            ->orderBy('c.start_competition', 'DESC')
+            ->orderBy('c.start_competition', \SortDirection::Descending)
             ->getQuery()
             ->getResult();
     }
