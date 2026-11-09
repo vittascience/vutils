@@ -4,38 +4,28 @@ namespace Utils\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Entity(repositoryClass="Utils\Repository\LanguageRepository")
- * @ORM\Table(name="lang")
- */
+#[ORM\Table(name: 'lang')]
+#[ORM\Entity(repositoryClass: \Utils\Repository\LanguageRepository::class)]
 class Language{
 
-    /** 
-     * @ORM\Id
-     * @ORM\Column(type="integer")
-     * @ORM\GeneratedValue
-     */
+    #[ORM\Id]
+    #[ORM\Column(type: 'integer')]
+    #[ORM\GeneratedValue]
     private $id;
 
     /**
-     * @ORM\Column(name="name", type="string", length=250, nullable=false)
      * @var string
      */
+    #[ORM\Column(name: 'name', type: 'string', length: 250, nullable: false)]
     private $name;
 
-    /**
-     * @ORM\Column(name="langcode", type="string", length=2, nullable=false)
-     */
+    #[ORM\Column(name: 'langcode', type: 'string', length: 2, nullable: false)]
     private $langCode;
 
-    /**
-     * @ORM\Column(name="path", type="string", length=250, nullable=false)
-     */
+    #[ORM\Column(name: 'path', type: 'string', length: 250, nullable: false)]
     private $path;
 
-    /**
-     * @ORM\Column(name="available", type="integer", length=1, nullable=false)
-     */
+    #[ORM\Column(name: 'available', type: 'integer', length: 1, nullable: false)]
     private $available;
 
 

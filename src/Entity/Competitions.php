@@ -4,23 +4,17 @@ namespace Utils\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Entity(repositoryClass="Utils\Repository\CompetitionsRepository")
- * @ORM\Table(name="generative_assets_competitions")
- */
+#[ORM\Table(name: 'generative_assets_competitions')]
+#[ORM\Entity(repositoryClass: \Utils\Repository\CompetitionsRepository::class)]
 class Competitions
 {
-   /**
-     * @ORM\Id
-     * @ORM\GeneratedValue
-     * @ORM\Column(type="integer")
-     */
+   #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(type: 'integer')]
     private int $id;
 
-    /** 
-     * @ORM\Column(type="string")
-     * @ORM\GeneratedValue
-     */
+    #[ORM\Column(type: 'string')]
+    #[ORM\GeneratedValue]
     private $name;
 
     /**
@@ -39,9 +33,9 @@ class Competitions
    }
 
     /**
-     * @ORM\Column(type="datetime", name="start_competition")
      * @var \DateTime
      */
+    #[ORM\Column(type: 'datetime', name: 'start_competition')]
     private $start_competition;
 
 
@@ -63,9 +57,9 @@ class Competitions
     }
 
       /**
-     * @ORM\Column(type="datetime", name="end_competition")
      * @var \DateTime
      */
+    #[ORM\Column(type: 'datetime', name: 'end_competition')]
     private $end_competition;
 
 

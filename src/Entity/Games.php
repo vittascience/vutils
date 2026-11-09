@@ -4,17 +4,13 @@ namespace Utils\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Entity(repositoryClass="Utils\Repository\GamesRepository")
- * @ORM\Table(name="generative_assets_game")
- */
+#[ORM\Table(name: 'generative_assets_game')]
+#[ORM\Entity(repositoryClass: \Utils\Repository\GamesRepository::class)]
 class Games
 {
-   /**
-     * @ORM\Id
-     * @ORM\GeneratedValue
-     * @ORM\Column(type="integer")
-     */
+   #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(type: 'integer')]
     private int $id;
     /**
      * @return Id
@@ -24,10 +20,8 @@ class Games
         return $this->id;
     }
 
-    /** 
-     * @ORM\Column(type="string")
-     * @ORM\GeneratedValue
-     */
+    #[ORM\Column(type: 'string')]
+    #[ORM\GeneratedValue]
     private $prompt;
 
     /**
@@ -38,10 +32,8 @@ class Games
        return $this->prompt;
    }
 
-       /** 
-     * @ORM\Column(type="string")
-     * @ORM\GeneratedValue
-     */
+       #[ORM\Column(type: 'string')]
+    #[ORM\GeneratedValue]
     private $image;
 
     /**
@@ -53,9 +45,9 @@ class Games
    }
    
     /**
-     * @ORM\Column(type="datetime", name="start_game")
      * @var \DateTime
      */
+    #[ORM\Column(type: 'datetime', name: 'start_game')]
     private $start_game;
 
 
@@ -67,9 +59,9 @@ class Games
         return $this->start_game;
     }
         /**
-     * @ORM\Column(type="datetime", name="end_game")
      * @var \DateTime
      */
+    #[ORM\Column(type: 'datetime', name: 'end_game')]
     private $end_game;
 
 

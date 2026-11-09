@@ -9,38 +9,34 @@ use Utils\Entity\GenerativeAssets;
 
 
 
-/**
- * @ORM\Entity(repositoryClass="Utils\Repository\UserLikeImageRepository")
- * @ORM\Table(name="generative_assets_like")
- */
+#[ORM\Table(name: 'generative_assets_like')]
+#[ORM\Entity(repositoryClass: \Utils\Repository\UserLikeImageRepository::class)]
 class UserLikeImage
 {
 
-    /** 
-     * @ORM\Id
-     * @ORM\Column(type="integer")
-     * @ORM\GeneratedValue
-     */
+    #[ORM\Id]
+    #[ORM\Column(type: 'integer')]
+    #[ORM\GeneratedValue]
     private $id;
 
     /**
-     * @ORM\ManyToOne(targetEntity="User\Entity\User")
-     * @ORM\JoinColumn(name="user_id", referencedColumnName="id", onDelete="CASCADE", nullable=false)
      * @var User
      */
+    #[ORM\JoinColumn(name: 'user_id', referencedColumnName: 'id', onDelete: 'CASCADE', nullable: false)]
+    #[ORM\ManyToOne(targetEntity: \User\Entity\User::class)]
     private $user;
 
     /**
-     * @ORM\ManyToOne(targetEntity="Utils\Entity\GenerativeAssets")
-     * @ORM\JoinColumn(name="image_id", referencedColumnName="id", onDelete="CASCADE", nullable=false)
      * @var GenerativeAssets
      */
+    #[ORM\JoinColumn(name: 'image_id', referencedColumnName: 'id', onDelete: 'CASCADE', nullable: false)]
+    #[ORM\ManyToOne(targetEntity: \Utils\Entity\GenerativeAssets::class)]
     private $generativeAssets;
 
     /**
-     * @ORM\Column(type="datetime", name="liked_at")
      * @var \DateTime
      */
+    #[ORM\Column(type: 'datetime', name: 'liked_at')]
     private $likedAt;
 
 
