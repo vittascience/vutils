@@ -54,7 +54,7 @@ class UserLikeImageRepository extends EntityRepository
             ->from(UserLikeImage::class, 'g')
             ->andWhere('g.user = :user')
             ->setParameter('user', $user)
-            ->orderBy('g.likedAt', 'DESC')
+            ->orderBy('g.likedAt', \SortDirection::Descending)
             ->setFirstResult(($page - 1) * $limit)
             ->setMaxResults($limit);
         

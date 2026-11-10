@@ -7,37 +7,33 @@ use User\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
 
-/**
- * @ORM\Entity(repositoryClass="Utils\Repository\UserImgRepository")
- * @ORM\Table(name="user_images")
- */
+#[ORM\Table(name: 'user_images')]
+#[ORM\Entity(repositoryClass: \Utils\Repository\UserImgRepository::class)]
 class UserImg
 {
 
-    /** 
-     * @ORM\Id
-     * @ORM\Column(type="integer")
-     * @ORM\GeneratedValue
-     */
+    #[ORM\Id]
+    #[ORM\Column(type: 'integer')]
+    #[ORM\GeneratedValue]
     private $id;
 
     /**
-     * @ORM\ManyToOne(targetEntity="User\Entity\User")
-     * @ORM\JoinColumn(name="user_id", referencedColumnName="id", onDelete="CASCADE", nullable=false)
      * @var User
      */
+    #[ORM\JoinColumn(name: 'user_id', referencedColumnName: 'id', onDelete: 'CASCADE', nullable: false)]
+    #[ORM\ManyToOne(targetEntity: \User\Entity\User::class)]
     private $user;
 
     /**
-     * @ORM\Column(name="img", type="string", length=255, nullable=false)
      * @var string
      */
+    #[ORM\Column(name: 'img', type: 'string', length: 255, nullable: false)]
     private $img;
 
     /**
-     * @ORM\Column(name="is_public", type="boolean", nullable=true)
      * @var bool
      */
+    #[ORM\Column(name: 'is_public', type: 'boolean', nullable: true)]
     private $isPublic;
 
 

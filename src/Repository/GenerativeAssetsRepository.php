@@ -60,7 +60,7 @@ class GenerativeAssetsRepository extends EntityRepository
             ->from(GenerativeAssets::class, 'g')
             ->andWhere('g.name LIKE :name')
             ->setParameter('name', $prefixWithPercent)
-            ->orderBy('g.createdAt', 'DESC');
+            ->orderBy('g.createdAt', \SortDirection::Descending);
 
         if ($user !== null) {
             $qb->andWhere('g.user = :user')
@@ -76,7 +76,7 @@ class GenerativeAssetsRepository extends EntityRepository
             ->from(GenerativeAssets::class, 'asset')
             ->where('asset.isPublic = :isPublic')
             ->andWhere('asset.createdAt >= :oneWeekAgo')
-            ->orderBy('asset.likes', 'DESC')
+            ->orderBy('asset.likes', \SortDirection::Descending)
             ->setParameter('isPublic', true)
             ->setParameter('oneWeekAgo', $since)
             ->setMaxResults($limit)
@@ -91,7 +91,7 @@ class GenerativeAssetsRepository extends EntityRepository
             ->from(GenerativeAssets::class, 'asset')
             ->where('asset.user = :user')
             ->andWhere('asset.createdAt >= :oneWeekAgo')
-            ->orderBy('asset.likes', 'DESC')
+            ->orderBy('asset.likes', \SortDirection::Descending)
             ->setParameter('user', $user)
             ->setParameter('oneWeekAgo', $since)
             ->setMaxResults($limit)
@@ -134,9 +134,9 @@ class GenerativeAssetsRepository extends EntityRepository
         }
 
         if ($mostLiked) {
-            $queryBuilder->orderBy('asset.likes', 'DESC');
+            $queryBuilder->orderBy('asset.likes', \SortDirection::Descending);
         } else {
-            $queryBuilder->orderBy('asset.createdAt', $asc ? 'ASC' : 'DESC');
+            $queryBuilder->orderBy('asset.createdAt', $asc ? \SortDirection::Ascending : \SortDirection::Descending);
         }
 
         return $queryBuilder->getQuery()->getSingleScalarResult();
@@ -169,7 +169,7 @@ class GenerativeAssetsRepository extends EntityRepository
         $queryBuilder->select('asset')
             ->from(GenerativeAssets::class, 'asset')
             ->andWhere($queryBuilder->expr()->in('asset.id', $ids))
-            ->orderBy('asset.likes', 'DESC')
+            ->orderBy('asset.likes', \SortDirection::Descending)
             ->setMaxResults($limit)
             ->setFirstResult($offset);
 
@@ -202,9 +202,9 @@ class GenerativeAssetsRepository extends EntityRepository
         if ($since !== null) {
             $queryBuilder->andWhere('asset.createdAt >= :since')
                          ->setParameter('since', $since)
-                         ->orderBy('asset.likes', 'DESC');
+                         ->orderBy('asset.likes', \SortDirection::Descending);
         } else {
-            $queryBuilder->orderBy('asset.createdAt', 'DESC');
+            $queryBuilder->orderBy('asset.createdAt', \SortDirection::Descending);
         }
 
         return $queryBuilder->getQuery()->getResult();   
@@ -218,7 +218,7 @@ class GenerativeAssetsRepository extends EntityRepository
         ->andWhere('asset.user IS NOT NULL')
         ->andWhere('asset.createdAt BETWEEN :start AND :end')
         ->andWhere('asset.isCompetition = 1')
-        ->orderBy('asset.likes', 'DESC')
+        ->orderBy('asset.likes', \SortDirection::Descending)
         ->setParameter('isPublic', $isPublic)
         ->setParameter('start', $startOfWeek)
         ->setParameter('end', $endOfWeek)
@@ -234,7 +234,7 @@ class GenerativeAssetsRepository extends EntityRepository
         ->from(GenerativeAssets::class, 'asset')
         ->andWhere('asset.createdAt BETWEEN :start AND :end')
         ->andWhere('asset.score IS NOT NULL')
-        ->orderBy('asset.score', 'DESC')
+        ->orderBy('asset.score', \SortDirection::Descending)
         ->setParameter('start', $startOfWeek)
         ->setParameter('end', $endOfWeek)
         ->setMaxResults($limit)
@@ -265,7 +265,7 @@ class GenerativeAssetsRepository extends EntityRepository
         $stmt = $conn->executeQuery(
             $sql,
             ['limit' => $limit, 'offset' => $offset],
-            ['limit' => \PDO::PARAM_INT, 'offset' => \PDO::PARAM_INT]
+            ['limit' => \Doctrine\DBAL\ParameterType::INTEGER, 'offset' => \Doctrine\DBAL\ParameterType::INTEGER]
         );
     
         return $stmt->fetchAllAssociative();

@@ -16,7 +16,7 @@ class GamesRepository extends EntityRepository
             ->from(Games::class, 'c')
             ->where('c.start_game < :dateNow') // Utilisation d'un paramètre nommé
             ->setParameter('dateNow', $dateNow) // Liaison du paramètre nommé à $dateNow
-            ->orderBy('c.start_game', 'DESC')
+            ->orderBy('c.start_game', \SortDirection::Descending)
             ->getQuery()
             ->getResult();
     }
@@ -30,7 +30,7 @@ class GamesRepository extends EntityRepository
             ->where('c.start_game <= :dateNow') // Utilisation d'un paramètre nommé
             ->andWhere('c.end_game > :dateNow') // Utilisation d'un paramètre nommé
             ->setParameter('dateNow', $dateNow) // Liaison du paramètre nommé à $dateNow
-            ->orderBy('c.start_game', 'DESC')
+            ->orderBy('c.start_game', \SortDirection::Descending)
             ->getQuery()
             ->getResult();
     }

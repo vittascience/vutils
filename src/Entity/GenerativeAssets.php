@@ -7,127 +7,123 @@ use User\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
 
-/**
- * @ORM\Entity(repositoryClass="Utils\Repository\GenerativeAssetsRepository")
- * @ORM\Table(name="generative_assets")
- */
+#[ORM\Table(name: 'generative_assets')]
+#[ORM\Entity(repositoryClass: \Utils\Repository\GenerativeAssetsRepository::class)]
 class GenerativeAssets implements \JsonSerializable
 {
 
-    /** 
-     * @ORM\Id
-     * @ORM\Column(type="integer")
-     * @ORM\GeneratedValue
-     */
+    #[ORM\Id]
+    #[ORM\Column(type: 'integer')]
+    #[ORM\GeneratedValue]
     private $id;
 
     /**
-     * @ORM\ManyToOne(targetEntity="User\Entity\User")
-     * @ORM\JoinColumn(name="user_id", referencedColumnName="id", onDelete="CASCADE", nullable=true)
      * @var User
      */
+    #[ORM\JoinColumn(name: 'user_id', referencedColumnName: 'id', onDelete: 'CASCADE', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: \User\Entity\User::class)]
     private $user;
 
     /**
-     * @ORM\Column(name="name", type="string", length=255, nullable=false)
      * @var string
      */
+    #[ORM\Column(name: 'name', type: 'string', length: 255, nullable: false)]
     private $name;
 
     /**
-     * @ORM\Column(name="created_at", type="datetime", nullable=true)
      * @var datetime
      */
+    #[ORM\Column(name: 'created_at', type: 'datetime', nullable: true)]
     private $createdAt;
 
     /**
-     * @ORM\Column(name="prompt", type="text", nullable=false)
      * @var string
      */
+    #[ORM\Column(name: 'prompt', type: 'text', nullable: false)]
     private $prompt;
 
     /**
-     * @ORM\Column(name="ip_address", type="string", length=255, nullable=true)
      * @var string
      */
+    #[ORM\Column(name: 'ip_address', type: 'string', length: 255, nullable: true)]
     private $ipAddress;
 
     /**
-     * @ORM\Column(name="negative_prompt", type="text", nullable=false)
      * @var string
      */
+    #[ORM\Column(name: 'negative_prompt', type: 'text', nullable: false)]
     private $negativePrompt;
 
     /**
-     * @ORM\Column(name="lang", type="string", length=2, nullable=true)
      * @var string
      */
+    #[ORM\Column(name: 'lang', type: 'string', length: 2, nullable: true)]
     private $lang;
 
     /**
-     * @ORM\Column(name="witdh", type="integer", length=4, nullable=true)
      * @var integer
      */
+    #[ORM\Column(name: 'witdh', type: 'integer', length: 4, nullable: true)]
     private $width;
 
     /**
-     * @ORM\Column(name="height", type="integer", length=4, nullable=true)
      * @var integer
      */
+    #[ORM\Column(name: 'height', type: 'integer', length: 4, nullable: true)]
     private $height;
 
     /**
-     * @ORM\Column(name="cfg_scale", type="integer", nullable=true)
      * @var float
      */
+    #[ORM\Column(name: 'cfg_scale', type: 'integer', nullable: true)]
     private $cfgScale;
 
     /**
-     * @ORM\Column(name="likes", type="integer", nullable=true)
      * @var integer
      */
+    #[ORM\Column(name: 'likes', type: 'integer', nullable: true)]
     private $likes;
 
 
     /**
-     * @ORM\Column(name="is_public", type="boolean", nullable=true)
      * @var boolean
      */
+    #[ORM\Column(name: 'is_public', type: 'boolean', nullable: true)]
     private $isPublic;
 
     /**
-     * @ORM\Column(name="model_name", type="string", length=255, nullable=false)
      * @var string
      */
+    #[ORM\Column(name: 'model_name', type: 'string', length: 255, nullable: false)]
     private $modelName;
 
     /**
-     * @ORM\Column(name="admin_review", type="boolean", nullable=true)
      * @var boolean
      */
+    #[ORM\Column(name: 'admin_review', type: 'boolean', nullable: true)]
     private $adminReview;
 
     /**
-     * @ORM\Column(name="creation_steps", type="string", length=1000, nullable=true)
      * @var string
      */
+    #[ORM\Column(name: 'creation_steps', type: 'string', length: 1000, nullable: true)]
     private $creationSteps;
 
     /**
-     * @ORM\Column(name="is_competition", type="boolean", nullable=true)
      * @var boolean
      */
+    #[ORM\Column(name: 'is_competition', type: 'boolean', nullable: true)]
     private $isCompetition;
     /**
-     * @ORM\Column(name="score", type="integer", nullable=true)
      * @var integer
      */
+    #[ORM\Column(name: 'score', type: 'integer', nullable: true)]
     private $score;
 
     /**
-     * @ORM\Column(name="time", type="string", length=255, nullable=true)
      * @var string
      */
+    #[ORM\Column(name: 'time', type: 'string', length: 255, nullable: true)]
     private $time;
 
     /**
