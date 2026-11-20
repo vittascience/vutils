@@ -18,7 +18,7 @@ class Errors implements \JsonSerializable
         $this->timestamp = $timestamp;
     }
 
-    public function jsonSerialize()
+    public function jsonSerialize(): mixed
     {
         return [
             'error_message' => $this->errorMessage,

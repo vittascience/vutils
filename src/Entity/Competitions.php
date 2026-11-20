@@ -47,7 +47,7 @@ class Competitions
         return $this->start_competition;
     }
     
-    public function jsonSerialize()
+    public function jsonSerialize(): mixed
     {
         return [
             'name' => $this->getName(),
